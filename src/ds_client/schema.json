@@ -1,0 +1,1267 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/TimeBandEventList",
+    "definitions": {
+        "TimeBandEventList": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/Data"
+                },
+                "extensions": {
+                    "type": "null"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {}
+                }
+            },
+            "required": [
+                "data",
+                "errors",
+                "extensions"
+            ],
+            "title": "TimeBandEventList"
+        },
+        "Data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "timeBandEvents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/TimeBandEvent"
+                    }
+                }
+            },
+            "required": [
+                "timeBandEvents"
+            ],
+            "title": "Data"
+        },
+        "TimeBandEvent": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "date": {
+                    "anyOf": [
+                        {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "competitionSummary": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/CompetitionSummary"
+                    }
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Event"
+                    }
+                },
+                "outrights": {
+                    "type": "array",
+                    "items": {}
+                }
+            },
+            "required": [
+                "competitionSummary",
+                "date",
+                "events",
+                "outrights",
+                "type"
+            ],
+            "title": "TimeBandEvent"
+        },
+        "CompetitionSummary": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "competitionDrilldownTagId": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "typeIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "integer"
+                    }
+                },
+                "eventCount": {
+                    "type": "integer"
+                },
+                "marketCount": {
+                    "anyOf": [
+                        {
+                            "type": "integer"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "competitionDrilldownTagId",
+                "eventCount",
+                "marketCount",
+                "typeIds"
+            ],
+            "title": "CompetitionSummary"
+        },
+        "Event": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "externalIds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ExternalID"
+                    }
+                },
+                "extKey": {
+                    "type": "null"
+                },
+                "retailCode": {
+                    "type": "null"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "active": {
+                    "type": "boolean"
+                },
+                "displayed": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "popularityOrder": {
+                    "type": "null"
+                },
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Channel"
+                    }
+                },
+                "sortCode": {
+                    "$ref": "#/definitions/SortCode"
+                },
+                "startTime": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "started": {
+                    "type": "boolean"
+                },
+                "liveNow": {
+                    "type": "boolean"
+                },
+                "liveBettingAvailable": {
+                    "type": "boolean"
+                },
+                "resulted": {
+                    "type": "boolean"
+                },
+                "settled": {
+                    "type": "boolean"
+                },
+                "cashoutAvailable": {
+                    "type": "boolean"
+                },
+                "sportId": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "competitionDrilldownTagId": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "raceNumber": {
+                    "type": "integer"
+                },
+                "venue": {
+                    "type": "null"
+                },
+                "isVoid": {
+                    "type": "boolean"
+                },
+                "blurb": {
+                    "type": "null"
+                },
+                "fixedOddsAvailable": {
+                    "type": "boolean"
+                },
+                "rcpAvailable": {
+                    "type": "boolean"
+                },
+                "statisticsAvailable": {
+                    "type": "boolean"
+                },
+                "neutralVenue": {
+                    "type": "boolean"
+                },
+                "meeting": {
+                    "type": "null"
+                },
+                "teams": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Team"
+                    }
+                },
+                "mediaProviders": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/MediaProvider"
+                    }
+                },
+                "type": {
+                    "$ref": "#/definitions/TypeClass"
+                },
+                "class": {
+                    "$ref": "#/definitions/Category"
+                },
+                "category": {
+                    "$ref": "#/definitions/Category"
+                },
+                "marketCount": {
+                    "type": "integer"
+                },
+                "marketCounts": {
+                    "$ref": "#/definitions/MarketCounts"
+                },
+                "markets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Market"
+                    }
+                },
+                "commentary": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/definitions/Commentary"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "active",
+                "blurb",
+                "cashoutAvailable",
+                "category",
+                "channels",
+                "class",
+                "commentary",
+                "competitionDrilldownTagId",
+                "displayOrder",
+                "displayed",
+                "extKey",
+                "externalIds",
+                "fixedOddsAvailable",
+                "id",
+                "isVoid",
+                "liveBettingAvailable",
+                "liveNow",
+                "marketCount",
+                "marketCounts",
+                "markets",
+                "mediaProviders",
+                "meeting",
+                "name",
+                "neutralVenue",
+                "popularityOrder",
+                "raceNumber",
+                "rcpAvailable",
+                "resulted",
+                "retailCode",
+                "settled",
+                "sortCode",
+                "sportId",
+                "startTime",
+                "started",
+                "statisticsAvailable",
+                "status",
+                "teams",
+                "type",
+                "venue"
+            ],
+            "title": "Event"
+        },
+        "Category": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "displayOrder": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "code": {
+                    "$ref": "#/definitions/Code"
+                }
+            },
+            "required": [
+                "displayOrder",
+                "id",
+                "name"
+            ],
+            "title": "Category"
+        },
+        "Commentary": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "clock": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/definitions/Clock"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "participants": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Participant"
+                    }
+                },
+                "facts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Fact"
+                    }
+                },
+                "periods": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Period"
+                    }
+                }
+            },
+            "required": [
+                "clock",
+                "facts",
+                "participants",
+                "periods"
+            ],
+            "title": "Commentary"
+        },
+        "Clock": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "lastUpdate": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "state": {
+                    "$ref": "#/definitions/State"
+                }
+            },
+            "required": [
+                "id",
+                "lastUpdate",
+                "offset",
+                "state"
+            ],
+            "title": "Clock"
+        },
+        "Fact": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "type": {
+                    "$ref": "#/definitions/FactType"
+                },
+                "value": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "participantId": {
+                    "type": "string",
+                    "format": "integer"
+                }
+            },
+            "required": [
+                "id",
+                "participantId",
+                "type",
+                "value"
+            ],
+            "title": "Fact"
+        },
+        "Participant": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/ParticipantType"
+                },
+                "role": {
+                    "$ref": "#/definitions/Role"
+                },
+                "roleCode": {
+                    "$ref": "#/definitions/Side"
+                },
+                "active": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "active",
+                "id",
+                "name",
+                "role",
+                "roleCode",
+                "type"
+            ],
+            "title": "Participant"
+        },
+        "Period": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "type": {
+                    "$ref": "#/definitions/PeriodType"
+                },
+                "startTime": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "periodIndex": {
+                    "type": "null"
+                },
+                "order": {
+                    "type": "integer"
+                },
+                "clock": {
+                    "$ref": "#/definitions/Clock"
+                },
+                "facts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Fact"
+                    }
+                },
+                "incidents": {
+                    "type": "array",
+                    "items": {}
+                },
+                "periods": {
+                    "type": "array",
+                    "items": {}
+                }
+            },
+            "required": [
+                "clock",
+                "facts",
+                "id",
+                "incidents",
+                "order",
+                "periodIndex",
+                "periods",
+                "startTime",
+                "type"
+            ],
+            "title": "Period"
+        },
+        "ExternalID": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "provider": {
+                    "$ref": "#/definitions/Provider"
+                }
+            },
+            "required": [
+                "id",
+                "provider"
+            ],
+            "title": "ExternalID"
+        },
+        "MarketCounts": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "total": {
+                    "type": "integer"
+                },
+                "fixedOdds": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "fixedOdds",
+                "total"
+            ],
+            "title": "MarketCounts"
+        },
+        "Market": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "eventId": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "templateMarketId": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "type": {
+                    "$ref": "#/definitions/PurpleType"
+                },
+                "subType": {
+                    "$ref": "#/definitions/SubTypeEnum"
+                },
+                "name": {
+                    "$ref": "#/definitions/MarketName"
+                },
+                "active": {
+                    "type": "boolean"
+                },
+                "displayed": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                },
+                "collectionIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "integer"
+                    }
+                },
+                "betInRun": {
+                    "type": "boolean"
+                },
+                "resulted": {
+                    "type": "null"
+                },
+                "flags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Flag"
+                    }
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "displaySortId": {
+                    "type": "null"
+                },
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Channel"
+                    }
+                },
+                "handicapValue": {
+                    "anyOf": [
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "livePriceAvailable": {
+                    "type": "boolean"
+                },
+                "cashoutAvailable": {
+                    "type": "boolean"
+                },
+                "rcpAvailable": {
+                    "type": "boolean"
+                },
+                "minimumAccumulator": {
+                    "type": "integer"
+                },
+                "maximumAccumulator": {
+                    "type": "integer"
+                },
+                "fixedOddsAvailable": {
+                    "type": "boolean"
+                },
+                "groupCode": {
+                    "$ref": "#/definitions/GroupCode"
+                },
+                "blurb": {
+                    "type": "null"
+                },
+                "retailCode": {
+                    "type": "null"
+                },
+                "outcomes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Outcome"
+                    }
+                }
+            },
+            "required": [
+                "active",
+                "betInRun",
+                "blurb",
+                "cashoutAvailable",
+                "channels",
+                "collectionIds",
+                "displayOrder",
+                "displaySortId",
+                "displayed",
+                "eventId",
+                "fixedOddsAvailable",
+                "flags",
+                "groupCode",
+                "handicapValue",
+                "id",
+                "livePriceAvailable",
+                "maximumAccumulator",
+                "minimumAccumulator",
+                "name",
+                "outcomes",
+                "rcpAvailable",
+                "resulted",
+                "retailCode",
+                "status",
+                "subType",
+                "templateMarketId",
+                "type"
+            ],
+            "title": "Market"
+        },
+        "Outcome": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "marketId": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/SubTypeEnum"
+                },
+                "subType": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/definitions/SubType"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "active": {
+                    "type": "boolean"
+                },
+                "displayed": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                },
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Channel"
+                    }
+                },
+                "resulted": {
+                    "type": "boolean"
+                },
+                "rcpAvailable": {
+                    "type": "boolean"
+                },
+                "runnerNumber": {
+                    "type": "integer"
+                },
+                "retailCode": {
+                    "type": "null"
+                },
+                "outcomeScore": {
+                    "type": "null"
+                },
+                "prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Price"
+                    }
+                }
+            },
+            "required": [
+                "active",
+                "channels",
+                "displayOrder",
+                "displayed",
+                "id",
+                "marketId",
+                "name",
+                "outcomeScore",
+                "prices",
+                "rcpAvailable",
+                "resulted",
+                "retailCode",
+                "runnerNumber",
+                "status",
+                "subType",
+                "type"
+            ],
+            "title": "Outcome"
+        },
+        "Price": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "numerator": {
+                    "type": "integer"
+                },
+                "denominator": {
+                    "type": "integer"
+                },
+                "decimal": {
+                    "type": "number"
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "priceType": {
+                    "$ref": "#/definitions/PriceType"
+                },
+                "handicapLow": {
+                    "anyOf": [
+                        {
+                            "type": "null"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
+                "handicapHigh": {
+                    "anyOf": [
+                        {
+                            "type": "null"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "decimal",
+                "denominator",
+                "displayOrder",
+                "handicapHigh",
+                "handicapLow",
+                "numerator",
+                "priceType"
+            ],
+            "title": "Price"
+        },
+        "MediaProvider": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/definitions/ID"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "name": {
+                    "$ref": "#/definitions/MediaProviderName"
+                },
+                "providerCode": {
+                    "type": "null"
+                },
+                "mediaType": {
+                    "$ref": "#/definitions/MediaType"
+                },
+                "media": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Media"
+                    }
+                },
+                "logoResource": {
+                    "type": "null"
+                },
+                "listingUrl": {
+                    "anyOf": [
+                        {
+                            "type": "null"
+                        },
+                        {
+                            "type": "string",
+                            "format": "uri",
+                            "qt-uri-protocols": [
+                                "http",
+                                "https"
+                            ]
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "id",
+                "listingUrl",
+                "logoResource",
+                "media",
+                "mediaType",
+                "name",
+                "providerCode"
+            ],
+            "title": "MediaProvider"
+        },
+        "Media": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "url": {
+                    "type": "null"
+                },
+                "startTime": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "endTime": {
+                    "anyOf": [
+                        {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "externalMediaIds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ExternalMediaID"
+                    }
+                }
+            },
+            "required": [
+                "active",
+                "endTime",
+                "externalMediaIds",
+                "startTime",
+                "url"
+            ],
+            "title": "Media"
+        },
+        "ExternalMediaID": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/ExternalMediaIDType"
+                }
+            },
+            "required": [
+                "id",
+                "type"
+            ],
+            "title": "ExternalMediaID"
+        },
+        "Team": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "null"
+                },
+                "side": {
+                    "$ref": "#/definitions/Side"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "alternativeNames": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/AlternativeName"
+                    }
+                },
+                "code": {
+                    "type": "null"
+                },
+                "externalId": {
+                    "type": "null"
+                },
+                "status": {
+                    "type": "null"
+                }
+            },
+            "required": [
+                "alternativeNames",
+                "code",
+                "externalId",
+                "id",
+                "name",
+                "side",
+                "status"
+            ],
+            "title": "Team"
+        },
+        "AlternativeName": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "$ref": "#/definitions/AlternativeNameType"
+                },
+                "value": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "type",
+                "value"
+            ],
+            "title": "AlternativeName"
+        },
+        "TypeClass": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "alternativeNames": {
+                    "type": "array",
+                    "items": {}
+                },
+                "displayOrder": {
+                    "type": "string",
+                    "format": "integer"
+                },
+                "fixedOddsAvailable": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "alternativeNames",
+                "displayOrder",
+                "fixedOddsAvailable",
+                "id",
+                "name"
+            ],
+            "title": "TypeClass"
+        },
+        "Code": {
+            "type": "string",
+            "enum": [
+                "FOOTBALL"
+            ],
+            "title": "Code"
+        },
+        "Channel": {
+            "type": "string",
+            "enum": [
+                "R",
+                "S",
+                "I",
+                "M"
+            ],
+            "title": "Channel"
+        },
+        "State": {
+            "type": "string",
+            "enum": [
+                "RUNNING",
+                "STOPPED"
+            ],
+            "title": "State"
+        },
+        "FactType": {
+            "type": "string",
+            "enum": [
+                "SCORE",
+                "RED_CARDS",
+                "CORNERS",
+                "PENALTIES",
+                "YELLOW_RED_CARDS",
+                "YELLOW_CARDS"
+            ],
+            "title": "FactType"
+        },
+        "Role": {
+            "type": "string",
+            "enum": [
+                "Home Team",
+                "Away Team"
+            ],
+            "title": "Role"
+        },
+        "Side": {
+            "type": "string",
+            "enum": [
+                "HOME",
+                "AWAY"
+            ],
+            "title": "Side"
+        },
+        "ParticipantType": {
+            "type": "string",
+            "enum": [
+                "GROUP"
+            ],
+            "title": "ParticipantType"
+        },
+        "PeriodType": {
+            "type": "string",
+            "enum": [
+                "SECOND_HALF",
+                "FIRST_HALF"
+            ],
+            "title": "PeriodType"
+        },
+        "Provider": {
+            "type": "string",
+            "enum": [
+                "betgenius",
+                "betradar",
+                "lsports",
+                "enetpulse"
+            ],
+            "title": "Provider"
+        },
+        "Flag": {
+            "type": "string",
+            "enum": [
+                "PRI",
+                "MAIN"
+            ],
+            "title": "Flag"
+        },
+        "GroupCode": {
+            "type": "string",
+            "enum": [
+                "MATCH_RESULT",
+                "TOTAL_GOALS_OVER/UNDER",
+                "HANDICAP",
+                "BOTH_TEAMS_TO_SCORE",
+                "MATCH_RESULT_1ST_HALF"
+            ],
+            "title": "GroupCode"
+        },
+        "MarketName": {
+            "type": "string",
+            "enum": [
+                "Match Result",
+                "Total Goals Over/Under 3.5",
+                "Total Goals Over/Under 4.5",
+                "Total Goals Over/Under 5.5",
+                "Total Goals Over/Under 6.5",
+                "Handicap 1",
+                "Handicap 2.0",
+                "Handicap -1.0",
+                "Total Goals Over/Under 7.5",
+                "Total Goals Over/Under 8.5",
+                "Handicap -2.0",
+                "Handicap -3.0",
+                "Handicap -4.0",
+                "Both Teams to Score",
+                "Total Goals Over/Under 2.5",
+                "Handicap 3.0",
+                "Handicap -5",
+                "Handicap -6.0",
+                "Total Goals Over/Under 1.5",
+                "Total Goals Over/Under 0.5",
+                "Half Time Result",
+                "Handicap 4.0"
+            ],
+            "title": "MarketName"
+        },
+        "PriceType": {
+            "type": "string",
+            "enum": [
+                "LP"
+            ],
+            "title": "PriceType"
+        },
+        "Status": {
+            "type": "string",
+            "enum": [
+                "ACTIVE",
+                "SUSPENDED"
+            ],
+            "title": "Status"
+        },
+        "SubType": {
+            "type": "string",
+            "enum": [
+                "A",
+                "H",
+                "D",
+                "L"
+            ],
+            "title": "SubType"
+        },
+        "SubTypeEnum": {
+            "type": "string",
+            "enum": [
+                "MR",
+                "HL",
+                "MH",
+                "--",
+                "H1"
+            ],
+            "title": "SubTypeEnum"
+        },
+        "PurpleType": {
+            "type": "string",
+            "enum": [
+                "-",
+                "L",
+                "M"
+            ],
+            "title": "PurpleType"
+        },
+        "ID": {
+            "type": "string",
+            "enum": [
+                "VST1",
+                "VST5",
+                "VST3"
+            ],
+            "title": "ID"
+        },
+        "ExternalMediaIDType": {
+            "type": "string",
+            "enum": [
+                "DATA",
+                "VIDEO"
+            ],
+            "title": "ExternalMediaIDType"
+        },
+        "MediaType": {
+            "type": "string",
+            "enum": [
+                "VIDEO",
+                "TELEVISION"
+            ],
+            "title": "MediaType"
+        },
+        "MediaProviderName": {
+            "type": "string",
+            "enum": [
+                "Perform",
+                "Perform Retail",
+                "3+",
+                "3MAX",
+                "3SPO",
+                "TV2 Sport X",
+                "RTL",
+                "Img",
+                "DS"
+            ],
+            "title": "MediaProviderName"
+        },
+        "SortCode": {
+            "type": "string",
+            "enum": [
+                "MTCH"
+            ],
+            "title": "SortCode"
+        },
+        "AlternativeNameType": {
+            "type": "string",
+            "enum": [
+                "FULL"
+            ],
+            "title": "AlternativeNameType"
+        }
+    }
+}
