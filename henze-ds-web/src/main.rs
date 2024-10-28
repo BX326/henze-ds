@@ -24,7 +24,7 @@ fn not_found() -> Redirect {
 fn rocket() -> _ {
     rocket::build()
         .mount("/", routes![process_data_route])
-        .mount("/static", FileServer::from("./static"))
-        .attach(Template::fairing())
+        // .mount("/static", FileServer::from("./static"))
+        // .attach(Template::fairing())
         .register("/", catchers![not_found])
     }
