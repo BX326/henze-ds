@@ -1,0 +1,8 @@
+[package]
+name = "henze-ds-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+henze_ds = { path = "../henze-ds" }
+tokio = { version = "1", features = ["full"] }

@@ -1249,6 +1249,10 @@ impl std::convert::TryFrom<String> for Flag {
 pub enum GroupCode {
     #[serde(rename = "MATCH_RESULT")]
     MatchResult,
+    #[serde(rename = "TIE_BREAK_DECIDER")]
+    TieBreakDecider,
+    #[serde(rename = "WINNER_OF_TIE")]
+    WinnerOfTie,
     #[serde(rename = "TOTAL_GOALS_OVER/UNDER")]
     TotalGoalsOverUnder,
     #[serde(rename = "HANDICAP")]
@@ -1267,6 +1271,8 @@ impl ::std::fmt::Display for GroupCode {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::MatchResult => write!(f, "MATCH_RESULT"),
+            Self::TieBreakDecider => write!(f, "TIE_BREAK_DECIDER"),
+            Self::WinnerOfTie => write!(f, "WINNER_OF_TIE"),
             Self::TotalGoalsOverUnder => write!(f, "TOTAL_GOALS_OVER/UNDER"),
             Self::Handicap => write!(f, "HANDICAP"),
             Self::BothTeamsToScore => write!(f, "BOTH_TEAMS_TO_SCORE"),
@@ -1279,6 +1285,8 @@ impl std::str::FromStr for GroupCode {
     fn from_str(value: &str) -> Result<Self, self::error::ConversionError> {
         match value {
             "MATCH_RESULT" => Ok(Self::MatchResult),
+            "TIE_BREAK_DECIDER" => Ok(Self::TieBreakDecider),
+            "WINNER_OF_TIE" => Ok(Self::WinnerOfTie),
             "TOTAL_GOALS_OVER/UNDER" => Ok(Self::TotalGoalsOverUnder),
             "HANDICAP" => Ok(Self::Handicap),
             "BOTH_TEAMS_TO_SCORE" => Ok(Self::BothTeamsToScore),
@@ -1336,10 +1344,14 @@ impl std::convert::TryFrom<String> for GroupCode {
 pub enum Id {
     #[serde(rename = "VST1")]
     Vst1,
-    #[serde(rename = "VST5")]
-    Vst5,
+    #[serde(rename = "VST2")]
+    Vst2,
     #[serde(rename = "VST3")]
     Vst3,
+    #[serde(rename = "VST4")]
+    Vst4,
+    #[serde(rename = "VST5")]
+    Vst5,
 }
 impl From<&Id> for Id {
     fn from(value: &Id) -> Self {
@@ -1350,8 +1362,10 @@ impl ::std::fmt::Display for Id {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Vst1 => write!(f, "VST1"),
-            Self::Vst5 => write!(f, "VST5"),
+            Self::Vst2 => write!(f, "VST2"),
             Self::Vst3 => write!(f, "VST3"),
+            Self::Vst4 => write!(f, "VST4"),
+            Self::Vst5 => write!(f, "VST5"),
         }
     }
 }
@@ -1360,8 +1374,10 @@ impl std::str::FromStr for Id {
     fn from_str(value: &str) -> Result<Self, self::error::ConversionError> {
         match value {
             "VST1" => Ok(Self::Vst1),
-            "VST5" => Ok(Self::Vst5),
+            "VST2" => Ok(Self::Vst2),
             "VST3" => Ok(Self::Vst3),
+            "VST4" => Ok(Self::Vst4),
+            "VST5" => Ok(Self::Vst5),
             _ => Err("invalid value".into()),
         }
     }
@@ -1680,6 +1696,10 @@ impl MarketCounts {
 pub enum MarketName {
     #[serde(rename = "Match Result")]
     MatchResult,
+    #[serde(rename = "Hvordan bliver kampen afgjort?")]
+    HvordanBliverKampenAfgjort,
+    #[serde(rename = "Winner of Tie")]
+    WinnerOfTie,
     #[serde(rename = "Total Goals Over/Under 3.5")]
     TotalGoalsOverUnder35,
     #[serde(rename = "Total Goals Over/Under 4.5")]
@@ -1732,6 +1752,8 @@ impl ::std::fmt::Display for MarketName {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::MatchResult => write!(f, "Match Result"),
+            Self::HvordanBliverKampenAfgjort => write!(f, "Hvordan bliver kampen afgjort?"),
+            Self::WinnerOfTie => write!(f, "Winner of Tie"),
             Self::TotalGoalsOverUnder35 => write!(f, "Total Goals Over/Under 3.5"),
             Self::TotalGoalsOverUnder45 => write!(f, "Total Goals Over/Under 4.5"),
             Self::TotalGoalsOverUnder55 => write!(f, "Total Goals Over/Under 5.5"),
@@ -1761,6 +1783,8 @@ impl std::str::FromStr for MarketName {
     fn from_str(value: &str) -> Result<Self, self::error::ConversionError> {
         match value {
             "Match Result" => Ok(Self::MatchResult),
+            "Hvordan bliver kampen afgjort?" => Ok(Self::HvordanBliverKampenAfgjort),
+            "Winner of Tie" => Ok(Self::WinnerOfTie),
             "Total Goals Over/Under 3.5" => Ok(Self::TotalGoalsOverUnder35),
             "Total Goals Over/Under 4.5" => Ok(Self::TotalGoalsOverUnder45),
             "Total Goals Over/Under 5.5" => Ok(Self::TotalGoalsOverUnder55),
@@ -2009,6 +2033,10 @@ pub enum MediaProviderName {
     _3max,
     #[serde(rename = "3SPO")]
     _3spo,
+    #[serde(rename = "Betradar")]
+    Betradar,
+    #[serde(rename = "See")]
+    See,
     #[serde(rename = "TV2 Sport X")]
     Tv2SportX,
     #[serde(rename = "RTL")]
@@ -2030,6 +2058,8 @@ impl ::std::fmt::Display for MediaProviderName {
             Self::_3 => write!(f, "3+"),
             Self::_3max => write!(f, "3MAX"),
             Self::_3spo => write!(f, "3SPO"),
+            Self::Betradar => write!(f, "Betradar"),
+            Self::See => write!(f, "See"),
             Self::Tv2SportX => write!(f, "TV2 Sport X"),
             Self::Rtl => write!(f, "RTL"),
             Self::Img => write!(f, "Img"),
@@ -2046,6 +2076,7 @@ impl std::str::FromStr for MediaProviderName {
             "3+" => Ok(Self::_3),
             "3MAX" => Ok(Self::_3max),
             "3SPO" => Ok(Self::_3spo),
+            "Betradar" => Ok(Self::Betradar),
             "TV2 Sport X" => Ok(Self::Tv2SportX),
             "RTL" => Ok(Self::Rtl),
             "Img" => Ok(Self::Img),
