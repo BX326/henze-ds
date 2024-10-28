@@ -2035,6 +2035,10 @@ pub enum MediaProviderName {
     _3spo,
     #[serde(rename = "Betradar")]
     Betradar,
+    #[serde(rename = "Betradar")]
+    DR1,
+    #[serde(rename = "Betradar")]
+    DR2,
     #[serde(rename = "See")]
     See,
     #[serde(rename = "TV2 Sport X")]
@@ -2044,6 +2048,8 @@ pub enum MediaProviderName {
     Img,
     #[serde(rename = "DS")]
     Ds,
+    #[serde(other)]
+    Unknown,
 }
 impl From<&MediaProviderName> for MediaProviderName {
     fn from(value: &MediaProviderName) -> Self {
@@ -2059,11 +2065,14 @@ impl ::std::fmt::Display for MediaProviderName {
             Self::_3max => write!(f, "3MAX"),
             Self::_3spo => write!(f, "3SPO"),
             Self::Betradar => write!(f, "Betradar"),
+            Self::DR1 => write!(f, "DR1"),
+            Self::DR2 => write!(f, "DR2"),
             Self::See => write!(f, "See"),
             Self::Tv2SportX => write!(f, "TV2 Sport X"),
             Self::Rtl => write!(f, "RTL"),
             Self::Img => write!(f, "Img"),
             Self::Ds => write!(f, "DS"),
+            Self::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -2077,10 +2086,13 @@ impl std::str::FromStr for MediaProviderName {
             "3MAX" => Ok(Self::_3max),
             "3SPO" => Ok(Self::_3spo),
             "Betradar" => Ok(Self::Betradar),
+            "DR1" => Ok(Self::DR1),
+            "DR2" => Ok(Self::DR2),
             "TV2 Sport X" => Ok(Self::Tv2SportX),
             "RTL" => Ok(Self::Rtl),
             "Img" => Ok(Self::Img),
             "DS" => Ok(Self::Ds),
+            "Unknown" => Ok(Self::Unknown),
             _ => Err("invalid value".into()),
         }
     }
