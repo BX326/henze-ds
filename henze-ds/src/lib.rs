@@ -1,13 +1,11 @@
-use chrono::DateTime;
 use serde::Serialize;
 
 pub mod ds_client;
 
-#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct HenzeInfo {
     event_name: String,
-    event_time: DateTime<chrono::Utc>,
+    event_time: String,
     market_name: String,
     outcome: String,
     decimal: f64,
@@ -31,8 +29,8 @@ pub async fn retrieve_henze_data() -> Result<Vec<HenzeInfo>, Box<dyn std::error:
                         outcome.prices.iter().filter_map(move |price| {
                             (1.08 <= price.decimal && price.decimal <= 1.12).then(|| HenzeInfo {
                                 event_name: event_name.clone(),
-                                event_time: event_time.clone(),
-                                market_name: market_name.to_string().clone(),
+                                event_time: event_time.clone().to_string(),
+                                market_name: market_name.clone().to_string(),
                                 outcome: outcome_name.clone(),
                                 decimal: price.decimal,
                             })

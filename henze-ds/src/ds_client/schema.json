@@ -1119,10 +1119,6 @@
         },
         "Flag": {
             "type": "string",
-            "enum": [
-                "PRI",
-                "MAIN"
-            ],
             "title": "Flag"
         },
         "GroupCode": {
@@ -1132,36 +1128,14 @@
                 "TOTAL_GOALS_OVER/UNDER",
                 "HANDICAP",
                 "BOTH_TEAMS_TO_SCORE",
-                "MATCH_RESULT_1ST_HALF"
+                "MATCH_RESULT_1ST_HALF",
+                "WINNER_OF_TIE",
+                "TIE_BREAK_DECIDER"
             ],
             "title": "GroupCode"
         },
         "MarketName": {
             "type": "string",
-            "enum": [
-                "Match Result",
-                "Total Goals Over/Under 3.5",
-                "Total Goals Over/Under 4.5",
-                "Total Goals Over/Under 5.5",
-                "Total Goals Over/Under 6.5",
-                "Handicap 1",
-                "Handicap 2.0",
-                "Handicap -1.0",
-                "Total Goals Over/Under 7.5",
-                "Total Goals Over/Under 8.5",
-                "Handicap -2.0",
-                "Handicap -3.0",
-                "Handicap -4.0",
-                "Both Teams to Score",
-                "Total Goals Over/Under 2.5",
-                "Handicap 3.0",
-                "Handicap -5",
-                "Handicap -6.0",
-                "Total Goals Over/Under 1.5",
-                "Total Goals Over/Under 0.5",
-                "Half Time Result",
-                "Handicap 4.0"
-            ],
             "title": "MarketName"
         },
         "PriceType": {
@@ -1236,17 +1210,6 @@
         },
         "MediaProviderName": {
             "type": "string",
-            "enum": [
-                "Perform",
-                "Perform Retail",
-                "3+",
-                "3MAX",
-                "3SPO",
-                "TV2 Sport X",
-                "RTL",
-                "Img",
-                "DS"
-            ],
             "title": "MediaProviderName"
         },
         "SortCode": {
