@@ -3,5 +3,6 @@ members = [
   "henze-ds",
   "henze-ds-cli",
   "henze-ds-web",
+  "schema-flex",
 ]
 resolver = "2"
