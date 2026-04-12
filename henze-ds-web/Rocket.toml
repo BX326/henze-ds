@@ -1,0 +1,7 @@
+[default]
+template_dir = "templates"
+
+[release]
+address = "0.0.0.0"
+log_level = "normal"
+template_dir = "templates"

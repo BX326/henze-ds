@@ -1,0 +1,229 @@
+/* Custom color palette overrides for Bootstrap */
+:root,
+[data-bs-theme="dark"] {
+    --bs-body-bg: #1a1a1a;
+    --bs-body-color: #e0e0e0;
+    --bs-primary: #004b32;
+    --bs-primary-rgb: 0, 75, 50;
+    --bs-secondary: #eaa800;
+    --bs-secondary-rgb: 234, 168, 0;
+    --bs-success: #00c978;
+    --bs-link-color: #eaa800;
+    --bs-link-hover-color: #ffc107;
+    --bs-border-color: #333;
+    --bs-card-bg: #242424;
+    --bs-tertiary-bg: #2a2a2a;
+}
+
+body {
+    background-color: #1a1a1a;
+}
+
+/* Primary color utilities */
+.bg-primary {
+    background-color: #004b32 !important;
+}
+
+.text-primary {
+    color: #00c978 !important;
+}
+
+.btn-primary {
+    background-color: #004b32;
+    border-color: #004b32;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: #006644;
+    border-color: #006644;
+}
+
+/* Secondary color utilities */
+.bg-secondary {
+    background-color: #eaa800 !important;
+}
+
+.text-secondary {
+    color: #eaa800 !important;
+}
+
+.btn-secondary {
+    background-color: #eaa800;
+    border-color: #eaa800;
+    color: #004b32;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+    background-color: #d49a00;
+    border-color: #d49a00;
+    color: #004b32;
+}
+
+/* Badge overrides */
+.badge.bg-secondary {
+    background-color: #eaa800 !important;
+    color: #004b32;
+}
+
+/* Success color (for odds) */
+.text-success {
+    color: #00c978 !important;
+}
+
+/* Links */
+a {
+    color: #eaa800;
+}
+
+a:hover {
+    color: #ffc107;
+}
+
+/* Event links in table */
+.event-link {
+    color: #eaa800;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.event-link:hover {
+    color: #ffc107;
+    text-decoration: underline;
+}
+
+.event-link .bi {
+    opacity: 0.6;
+    font-size: 0.75em;
+    margin-left: 0.25rem;
+}
+
+.event-link:hover .bi {
+    opacity: 1;
+}
+
+/* Dark card styling */
+.card-dark {
+    background-color: #242424;
+    border-color: #333;
+}
+
+.card-dark .card-body {
+    background-color: #242424;
+}
+
+.card-dark .border-top {
+    border-color: #444 !important;
+}
+
+/* Table dark styling */
+.table {
+    --bs-table-bg: #242424;
+    --bs-table-striped-bg: #2a2a2a;
+    --bs-table-hover-bg: #333;
+    --bs-table-border-color: #444;
+}
+
+.table-light {
+    --bs-table-bg: #333 !important;
+    --bs-table-color: #e0e0e0;
+}
+
+.table > thead {
+    background-color: #333;
+}
+
+.table > thead > tr > th {
+    background-color: #333;
+    color: #e0e0e0;
+    border-bottom-color: #444;
+}
+
+/* Form focus states */
+.form-control:focus {
+    border-color: #eaa800;
+    box-shadow: 0 0 0 0.25rem rgba(234, 168, 0, 0.25);
+}
+
+/* Sortable table headers */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sortable:hover {
+    background-color: #444 !important;
+}
+
+.sort-icon {
+    opacity: 0.4;
+    font-size: 0.8rem;
+    margin-left: 0.25rem;
+}
+
+.sortable:hover .sort-icon {
+    opacity: 0.7;
+}
+
+.sorted-asc .sort-icon::before {
+    content: "\F128" !important; /* bi-arrow-up */
+}
+
+.sorted-desc .sort-icon::before {
+    content: "\F124" !important; /* bi-arrow-down */
+}
+
+.sorted-asc .sort-icon,
+.sorted-desc .sort-icon {
+    opacity: 1;
+    color: #eaa800;
+}
+
+/* Card header styling */
+.card-header.bg-primary {
+    background-color: #004b32 !important;
+}
+
+/* Navbar brand */
+.navbar-brand {
+    font-size: 1.5rem;
+}
+
+/* Table improvements */
+.table > tbody > tr > td {
+    vertical-align: middle;
+}
+
+/* Responsive table cards for mobile */
+@media (max-width: 767.98px) {
+    .table-responsive table thead {
+        display: none;
+    }
+
+    .table-responsive table tbody tr {
+        display: block;
+        margin-bottom: 1rem;
+        border: 1px solid #444;
+        border-radius: 0.375rem;
+        background: #2a2a2a;
+    }
+
+    .table-responsive table tbody td {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid #444;
+    }
+
+    .table-responsive table tbody td:last-child {
+        border-bottom: none;
+    }
+
+    .table-responsive table tbody td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #aaa;
+    }
+}

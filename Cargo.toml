@@ -2,6 +2,8 @@
 members = [
   "henze-ds",
   "henze-ds-cli",
+  "henze-ds-discord",
   "henze-ds-web",
+  "schema-flex",
 ]
 resolver = "2"
