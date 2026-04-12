@@ -95,13 +95,13 @@ fn not_found() -> Redirect {
 #[launch]
 fn rocket() -> _ {
     let port = env::var("PORT")
-        .unwrap_or_else(|_| "10000".to_string())
+        .unwrap_or_else(|_| "8080".to_string())
         .parse::<u16>()
         .expect("PORT must be a valid u16 integer");
 
-    // Get the directory where the crate is located to find static files
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let static_path = format!("{}/static", manifest_dir);
+    // Get static files path - use env var for Docker, fallback to CARGO_MANIFEST_DIR for dev
+    let static_path = env::var("ROCKET_STATIC_DIR")
+        .unwrap_or_else(|_| format!("{}/static", env!("CARGO_MANIFEST_DIR")));
 
     rocket::build()
         .mount("/", routes![index, filter_bets, api_bets])
