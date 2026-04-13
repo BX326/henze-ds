@@ -7,6 +7,7 @@ WORKDIR /app
 COPY Cargo.toml rust-toolchain ./
 COPY henze-ds ./henze-ds
 COPY henze-ds-cli ./henze-ds-cli
+COPY henze-ds-discord ./henze-ds-discord
 COPY henze-ds-web ./henze-ds-web
 COPY schema-flex ./schema-flex
 
