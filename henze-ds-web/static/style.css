@@ -24,41 +24,54 @@ body {
     background-color: #004b32 !important;
 }
 
-.text-primary {
-    color: #00c978 !important;
+/* Success button (Feeling Lucky) uses green accent */
+.btn-success {
+    background-color: #00c978;
+    border-color: #00c978;
+    color: #002b1f;
 }
 
-.btn-primary {
-    background-color: #004b32;
-    border-color: #004b32;
+.btn-success:hover,
+.btn-success:focus {
+    background-color: #00b066;
+    border-color: #00b066;
+    color: #002b1f;
 }
 
-.btn-primary:hover,
-.btn-primary:focus {
-    background-color: #006644;
-    border-color: #006644;
+.ds-lucky-row {
+    background: linear-gradient(90deg, rgba(234,168,0,0.06), rgba(0,201,120,0.03));
+    position: relative;
 }
-
-/* Secondary color utilities */
-.bg-secondary {
-    background-color: #eaa800 !important;
-}
-
-.text-secondary {
-    color: #eaa800 !important;
-}
-
-.btn-secondary {
-    background-color: #eaa800;
-    border-color: #eaa800;
+.ds-lucky-ribbon {
+    position: absolute;
+    right: 0.5rem;
+    top: 0.25rem;
+    background: #eaa800;
     color: #004b32;
+    font-weight: 700;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.7rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
-
-.btn-secondary:hover,
-.btn-secondary:focus {
-    background-color: #d49a00;
-    border-color: #d49a00;
+.ds-lucky-ribbon-floating {
+    position: absolute;
+    z-index: 9999;
+    background: #eaa800;
     color: #004b32;
+    font-weight: 800;
+    padding: 0.35rem 0.8rem;
+    border-radius: 0.35rem;
+    font-size: 0.85rem;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    transform: rotate(-12deg) translate(-50%, 0) scale(0.98);
+    pointer-events: none;
+    opacity: 0.98;
+    transition: transform 180ms ease, opacity 180ms ease;
+}
+.ds-lucky-highlight {
+    outline: 3px solid rgba(234,168,0,0.18);
+    border-radius: 0.25rem;
 }
 
 /* Badge overrides */
@@ -225,5 +238,188 @@ a:hover {
         content: attr(data-label);
         font-weight: 600;
         color: #aaa;
+    }
+}
+
+/* Accordion styling */
+.accordion-item {
+    background-color: #242424;
+    border-color: #444;
+}
+
+.accordion-button {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    padding: 1rem;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: #333;
+    color: #e0e0e0;
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(234, 168, 0, 0.25);
+    border-color: #eaa800;
+}
+
+.accordion-button::after {
+    filter: invert(1);
+}
+
+.accordion-body {
+    background-color: #242424;
+    padding: 0;
+}
+
+/* Event header content layout */
+.event-header-content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-right: 1rem;
+}
+
+.event-info {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.event-meta {
+    display: flex;
+    align-items: center;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: #aaa;
+}
+
+.event-time {
+    color: #888;
+}
+
+/* Live event styling */
+.live-event {
+    border-left: 3px solid #dc3545 !important;
+}
+
+.live-header {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+}
+
+.live-header:not(.collapsed) {
+    background-color: rgba(220, 53, 69, 0.15) !important;
+}
+
+.live-badge {
+    display: inline-flex;
+    align-items: center;
+    background-color: #dc3545;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.live-badge .match-minute {
+    margin-left: 0.5rem;
+    padding-left: 0.5rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.3);
+    font-weight: 600;
+}
+
+/* Pulse animation for live indicator */
+.pulse {
+    animation: pulse 1.5s infinite;
+    font-size: 0.5rem;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Sport badge */
+.sport-badge {
+    display: inline-block;
+    background-color: #004b32;
+    color: #00c978;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Form select styling */
+.form-select {
+    background-color: #2a2a2a;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+.form-select:focus {
+    border-color: #eaa800;
+    box-shadow: 0 0 0 0.25rem rgba(234, 168, 0, 0.25);
+}
+
+/* Market count badge */
+.market-count {
+    font-size: 0.75rem;
+}
+
+/* Inner table styling */
+.accordion-body .table {
+    --bs-table-bg: #1e1e1e;
+    --bs-table-striped-bg: #252525;
+}
+
+.accordion-body .table-light {
+    --bs-table-bg: #2a2a2a !important;
+}
+
+.accordion-body .table > thead > tr > th {
+    background-color: #2a2a2a;
+    border-bottom-color: #444;
+    font-size: 0.875rem;
+}
+
+.accordion-body .table > tbody > tr > td {
+    border-bottom-color: #333;
+    font-size: 0.875rem;
+}
+
+/* Responsive adjustments for accordion */
+@media (max-width: 767.98px) {
+    .event-header-content {
+        width: calc(100% - 2rem);
+    }
+
+    .event-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+
+
+    .event-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .market-count {
+        margin-left: 0 !important;
     }
 }
