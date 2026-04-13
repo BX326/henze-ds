@@ -178,7 +178,14 @@
           "type": "boolean"
         },
         "blurb": {
-          "type": "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "cashoutAvailable": {
           "type": "boolean"
@@ -238,6 +245,9 @@
           "type": "boolean"
         },
         "liveNow": {
+          "type": "boolean"
+        },
+        "liveRcpBettingAvailable": {
           "type": "boolean"
         },
         "marketCount": {
@@ -336,6 +346,7 @@
         "isVoid",
         "liveBettingAvailable",
         "liveNow",
+        "liveRcpBettingAvailable",
         "marketCount",
         "marketCounts",
         "markets",
@@ -405,14 +416,20 @@
           "type": "string"
         },
         "participantId": {
-          "format": "integer",
-          "type": "string"
+          "anyOf": [
+            {
+              "format": "integer",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "type": {
           "$ref": "#/definitions/FactType"
         },
         "value": {
-          "format": "integer",
           "type": "string"
         }
       },
@@ -450,7 +467,14 @@
           "type": "boolean"
         },
         "blurb": {
-          "type": "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "cashoutAvailable": {
           "type": "boolean"
@@ -528,8 +552,18 @@
         "rcpAvailable": {
           "type": "boolean"
         },
+        "rcpBetInRun": {
+          "type": "boolean"
+        },
         "resulted": {
-          "type": "null"
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "retailCode": {
           "type": "null"
@@ -570,6 +604,7 @@
         "name",
         "outcomes",
         "rcpAvailable",
+        "rcpBetInRun",
         "resulted",
         "retailCode",
         "status",
@@ -735,7 +770,14 @@
           "type": "string"
         },
         "outcomeScore": {
-          "type": "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "prices": {
           "items": {
@@ -750,7 +792,14 @@
           "type": "boolean"
         },
         "retailCode": {
-          "type": "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "runnerNumber": {
           "type": "integer"
@@ -853,7 +902,14 @@
           "type": "integer"
         },
         "periodIndex": {
-          "type": "null"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "periods": {
           "items": {},
