@@ -84,9 +84,9 @@ fn format_time_utc_plus_2(start_time: &DateTime<Utc>) -> String {
     local_time.format("%Y-%m-%d %H:%M").to_string()
 }
 
-/// Get sport name from class name (e.g., "FOOTBALL", "TENNIS")
-fn get_sport_name(class_name: &str) -> String {
-    class_name.to_string()
+/// Get sport name from category name (e.g., "Football", "Tennis")
+fn get_sport_name(category_name: &str) -> String {
+    category_name.to_string()
 }
 
 pub async fn retrieve_henze_data_with_filter(
@@ -111,7 +111,7 @@ pub async fn retrieve_henze_data_with_filter(
                 let event_url = format!("https://danskespil.dk/oddset/in-play/event/{}", event_id);
                 let is_live = event.live_now;
                 let sport_id = event.sport_id.clone();
-                let sport_name = get_sport_name(&event.class.name);
+                let sport_name = get_sport_name(&event.category.name);
                 
                 // Get match minute from commentary clock if available
                 let match_minute = event.commentary.as_ref().and_then(|c| {

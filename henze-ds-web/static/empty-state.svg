@@ -1,0 +1,19 @@
+<svg viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg">
+    <!-- Magnifying glass -->
+    <circle cx="85" cy="65" r="35" fill="none" stroke="#444" stroke-width="6"/>
+    <line x1="110" y1="90" x2="140" y2="120" stroke="#444" stroke-width="8" stroke-linecap="round"/>
+    
+    <!-- Question mark inside -->
+    <text x="85" y="75" text-anchor="middle" font-size="36" font-weight="bold" fill="#555">?</text>
+    
+    <!-- Decorative dots -->
+    <circle cx="45" cy="30" r="4" fill="#333"/>
+    <circle cx="155" cy="45" r="3" fill="#333"/>
+    <circle cx="165" cy="75" r="5" fill="#333"/>
+    <circle cx="35" cy="100" r="3" fill="#333"/>
+    
+    <!-- Dice outline (subtle) -->
+    <rect x="150" y="95" width="30" height="30" rx="5" fill="none" stroke="#3a3a3a" stroke-width="2" transform="rotate(15 165 110)"/>
+    <circle cx="158" cy="103" r="2" fill="#3a3a3a"/>
+    <circle cx="172" cy="117" r="2" fill="#3a3a3a"/>
+</svg>
