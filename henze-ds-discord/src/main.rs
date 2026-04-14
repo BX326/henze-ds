@@ -1,23 +1,189 @@
 use henze_ds::{HenzeFilter, HenzeInfo};
 use rand::seq::SliceRandom;
+use reqwest::Client as HttpClient;
+use serde::{Deserialize, Serialize};
 use serenity::all::{ChannelId, CreateEmbed, CreateEmbedFooter, CreateMessage, GatewayIntents, Http};
 use serenity::prelude::*;
 use std::env;
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Number of bets to include in the daily message
 const BETS_PER_MESSAGE: usize = 3;
 
-/// Fetch Henze bets and return up to `count` random ones
-async fn fetch_random_bets(count: usize) -> Result<Vec<HenzeInfo>, Box<dyn std::error::Error + Send + Sync>> {
+// OpenAI API structures
+#[derive(Serialize)]
+struct OpenAIRequest {
+    model: String,
+    messages: Vec<ChatMessage>,
+    temperature: f64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Deserialize)]
+struct OpenAIResponse {
+    choices: Vec<Choice>,
+}
+
+#[derive(Deserialize)]
+struct Choice {
+    message: ChatMessage,
+}
+
+/// Format bets into a numbered list for the AI prompt
+fn format_bets_for_ai(bets: &[HenzeInfo]) -> String {
+    bets.iter()
+        .enumerate()
+        .map(|(i, bet)| {
+            format!(
+                "{}. {} | {} | {} @ {:.2} | {} | {}",
+                i + 1,
+                bet.event_name,
+                bet.sport_name,
+                bet.outcome,
+                bet.decimal,
+                bet.market_name,
+                if bet.is_live {
+                    format!("LIVE ({}min)", bet.match_minute.unwrap_or(0))
+                } else {
+                    format!("Starts: {}", bet.event_time)
+                }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Default system prompt (embedded at compile time)
+const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../system_prompt.txt");
+
+/// Load the system prompt with priority: env var > file > default
+fn load_system_prompt() -> String {
+    // 1. Try environment variable (for secrets/deployment)
+    if let Ok(prompt) = env::var("SYSTEM_PROMPT") {
+        info!("Using system prompt from SYSTEM_PROMPT env var");
+        return prompt;
+    }
+    
+    // 2. Try custom file (for local development) - check multiple locations
+    for path in &["system_prompt.local.txt", "henze-ds-discord/system_prompt.local.txt"] {
+        if let Ok(custom) = std::fs::read_to_string(path) {
+            info!("Using custom system prompt from {}", path);
+            return custom;
+        }
+    }
+    
+    // 3. Fall back to default
+    DEFAULT_SYSTEM_PROMPT.to_string()
+}
+
+/// Use OpenAI to select the most interesting bets
+async fn select_bets_with_ai(
+    bets: &[HenzeInfo],
+    count: usize,
+) -> Result<Vec<usize>, Box<dyn std::error::Error + Send + Sync>> {
+    let api_key = env::var("OPENAI_API_KEY")?;
+    
+    let bets_list = format_bets_for_ai(bets);
+    
+    let system_prompt = load_system_prompt();
+
+    let user_prompt = format!(
+        "Select the {} most interesting bets from this list:\n\n{}\n\nReturn only the numbers, comma-separated.",
+        count,
+        bets_list
+    );
+
+    let request = OpenAIRequest {
+        model: "gpt-4o-mini".to_string(),
+        messages: vec![
+            ChatMessage {
+                role: "system".to_string(),
+                content: system_prompt,
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: user_prompt,
+            },
+        ],
+        temperature: 0.3,
+    };
+
+    let client = HttpClient::new();
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await?;
+        return Err(format!("OpenAI API error: {}", error_text).into());
+    }
+
+    let openai_response: OpenAIResponse = response.json().await?;
+    
+    let content = &openai_response.choices[0].message.content;
+    info!("AI selected bets: {}", content);
+    
+    // Parse the comma-separated numbers
+    let indices: Vec<usize> = content
+        .split(',')
+        .filter_map(|s| s.trim().parse::<usize>().ok())
+        .filter(|&n| n >= 1 && n <= bets.len())
+        .map(|n| n - 1) // Convert to 0-indexed
+        .take(count)
+        .collect();
+
+    Ok(indices)
+}
+
+/// Fetch Henze bets and select the best ones (AI-powered with random fallback)
+async fn fetch_best_bets(count: usize) -> Result<Vec<HenzeInfo>, Box<dyn std::error::Error + Send + Sync>> {
     let filter = HenzeFilter::default();
-    let mut bets = henze_ds::retrieve_henze_data_with_filter(filter)
+    let bets = henze_ds::retrieve_henze_data_with_filter(filter)
         .await
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
     
-    // Shuffle and take up to `count` bets
+    if bets.is_empty() {
+        return Ok(vec![]);
+    }
+    
+    // Try AI selection first
+    if env::var("OPENAI_API_KEY").is_ok() {
+        match select_bets_with_ai(&bets, count).await {
+            Ok(indices) if !indices.is_empty() => {
+                info!("Using AI-selected bets: {:?}", indices);
+                let selected: Vec<HenzeInfo> = indices
+                    .into_iter()
+                    .filter_map(|i| bets.get(i).cloned())
+                    .collect();
+                
+                if !selected.is_empty() {
+                    return Ok(selected);
+                }
+            }
+            Ok(_) => {
+                warn!("AI returned empty selection, falling back to random");
+            }
+            Err(e) => {
+                warn!("AI selection failed: {}, falling back to random", e);
+            }
+        }
+    } else {
+        info!("OPENAI_API_KEY not set, using random selection");
+    }
+    
+    // Fallback to random selection
+    let mut bets = bets;
     let mut rng = rand::thread_rng();
     bets.shuffle(&mut rng);
     bets.truncate(count);
@@ -42,9 +208,9 @@ fn format_bet(bet: &HenzeInfo) -> (String, String, bool) {
 /// Create the daily bets embed message
 fn create_bets_embed(bets: &[HenzeInfo]) -> CreateEmbed {
     let mut embed = CreateEmbed::new()
-        .title("🎰 Daily Henze Bets")
+        .title("🎰 Daily Henze Picks")
         .description(format!(
-            "Here are today's {} Henze bets with odds around 1.10 (±0.04):",
+            "Here are today's {} curated Henze bets (odds ~1.10):",
             bets.len()
         ))
         .color(0x00FF00);
@@ -65,7 +231,7 @@ fn create_bets_embed(bets: &[HenzeInfo]) -> CreateEmbed {
 async fn send_daily_bets(http: Arc<Http>, channel_id: ChannelId) {
     info!("Fetching daily Henze bets...");
     
-    match fetch_random_bets(BETS_PER_MESSAGE).await {
+    match fetch_best_bets(BETS_PER_MESSAGE).await {
         Ok(bets) if bets.is_empty() => {
             info!("No bets found for today");
             let message = CreateMessage::new().content("No Henze bets available today. Check back tomorrow!");
@@ -110,9 +276,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    // Check for --now flag (send immediately and exit)
+    // Check for flags
     let args: Vec<String> = env::args().collect();
     let send_now = args.iter().any(|arg| arg == "--now");
+    let test_ai = args.iter().any(|arg| arg == "--test-ai");
+
+    // Test AI selection without Discord (just prints results)
+    if test_ai {
+        info!("Testing AI selection...");
+        
+        // First show how many bets are available
+        let filter = HenzeFilter::default();
+        let all_bets = henze_ds::retrieve_henze_data_with_filter(filter)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        println!("\n📊 Found {} bets in odds range 1.06-1.14\n", all_bets.len());
+        
+        match fetch_best_bets(BETS_PER_MESSAGE).await {
+            Ok(bets) if bets.is_empty() => {
+                println!("No bets found.");
+            }
+            Ok(bets) => {
+                println!("\n🎰 AI-Selected Bets:\n");
+                for (i, bet) in bets.iter().enumerate() {
+                    println!("{}. {} ({}):", i + 1, bet.event_name, bet.sport_name);
+                    println!("   Market: {}", bet.market_name);
+                    println!("   Outcome: {} @ {:.2}", bet.outcome, bet.decimal);
+                    println!("   Time: {}", bet.event_time);
+                    println!("   Live: {}", if bet.is_live { "Yes" } else { "No" });
+                    println!("   URL: {}\n", bet.event_url);
+                }
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
+            }
+        }
+        return Ok(());
+    }
 
     // Load configuration from environment
     let token = env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN must be set");
@@ -178,7 +378,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_bets() {
-        let bets = fetch_random_bets(3).await;
+        let bets = fetch_best_bets(3).await;
         assert!(bets.is_ok());
     }
 }

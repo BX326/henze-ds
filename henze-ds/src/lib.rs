@@ -60,6 +60,15 @@ impl HenzeFilter {
         Self { target, tolerance, sport_tag_id }
     }
 
+    /// Create a filter that accepts all odds (no filtering)
+    pub fn all() -> Self {
+        Self {
+            target: 500.0,
+            tolerance: 500.0,
+            sport_tag_id: None,
+        }
+    }
+
     pub fn min_odds(&self) -> f64 {
         self.target - self.tolerance
     }
