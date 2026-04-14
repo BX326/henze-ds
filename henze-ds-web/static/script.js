@@ -1,5 +1,92 @@
 // Henze DS Web - Event handling
 document.addEventListener('DOMContentLoaded', function() {
+    // ========== Toast Notification System ==========
+    const toastContainer = document.getElementById('toast-container');
+    
+    function showToast(title, message, type = 'info', duration = 4000) {
+        if (!toastContainer) return;
+        
+        const icons = {
+            success: 'bi-check-circle-fill',
+            info: 'bi-info-circle-fill',
+            warning: 'bi-exclamation-triangle-fill',
+            error: 'bi-x-circle-fill'
+        };
+        
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = `
+            <i class="bi ${icons[type] || icons.info} toast-icon ${type}"></i>
+            <div class="toast-content">
+                <div class="toast-title">${title}</div>
+                ${message ? `<div class="toast-message">${message}</div>` : ''}
+            </div>
+            <button class="toast-close" aria-label="Close">
+                <i class="bi bi-x"></i>
+            </button>
+            <div class="toast-progress" style="animation-duration: ${duration}ms"></div>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Trigger animation
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+        
+        // Close button handler
+        const closeBtn = toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => dismissToast(toast));
+        
+        // Auto dismiss
+        setTimeout(() => dismissToast(toast), duration);
+        
+        return toast;
+    }
+    
+    function dismissToast(toast) {
+        if (!toast || toast.classList.contains('hiding')) return;
+        toast.classList.remove('show');
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 400);
+    }
+    
+    // Show results toast on page load (if we have results)
+    const eventCount = document.querySelectorAll('.accordion-item').length;
+    const marketCount = document.querySelectorAll('tbody tr[data-event-id]').length;
+    const liveCount = document.querySelectorAll('.live-event').length;
+    
+    if (eventCount > 0) {
+        let message = `${marketCount} market${marketCount !== 1 ? 's' : ''} across ${eventCount} event${eventCount !== 1 ? 's' : ''}`;
+        if (liveCount > 0) {
+            message += ` (${liveCount} live)`;
+        }
+        showToast('Results loaded', message, 'success');
+    }
+
+    // Loading overlay helper functions
+    const loadingOverlay = document.getElementById('loading-overlay');
+    
+    function showLoading() {
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('active');
+        }
+    }
+    
+    function hideLoading() {
+        if (loadingOverlay) {
+            loadingOverlay.classList.remove('active');
+        }
+    }
+
+    // Show loading animation when form is submitted (Find Bets button)
+    const searchForm = document.querySelector('form[action="/"]');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function() {
+            showLoading();
+        });
+    }
+
     // Auto-expand live events on page load
     const liveEvents = document.querySelectorAll('.live-event .accordion-button');
     if (liveEvents.length > 0 && liveEvents.length <= 3) {
@@ -43,11 +130,25 @@ document.addEventListener('DOMContentLoaded', function() {
             if (target) params.set('target', target);
             if (tolerance) params.set('tolerance', tolerance);
             if (sport) params.set('sport', sport);
+            
+            // Show loading animation
+            showLoading();
+            
             try {
                 const resp = await fetch(`/api/bets?${params.toString()}`);
-                if (!resp.ok) return;
+                if (!resp.ok) {
+                    hideLoading();
+                    return;
+                }
                 const bets = await resp.json();
-                if (!bets || bets.length === 0) return;
+                
+                // Hide loading after receiving response
+                hideLoading();
+                
+                if (!bets || bets.length === 0) {
+                    showToast('No bets found', 'Try adjusting your criteria', 'warning');
+                    return;
+                }
                 const choice = bets[Math.floor(Math.random() * bets.length)];
                 if (!choice) return;
 
@@ -92,6 +193,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Scroll into view and highlight
                     matchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     matchedRow.classList.add('ds-lucky-row', 'ds-lucky-highlight');
+                    
+                    // Show toast with bet info
+                    showToast('Lucky pick!', `${choice.outcome} @ ${parseFloat(choice.decimal).toFixed(2)}`, 'success');
 
                     // Add floating, tilted sticker overlayed across the row
                     // Remove previous floating stickers first
@@ -131,8 +235,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     }, 5000);
                 } else {
                     console.warn('Lucky choice not found in DOM', choice);
+                    showToast('Bet not displayed', 'Try searching first', 'warning');
                 }
             } catch (e) {
+                hideLoading();
+                showToast('Error', 'Failed to fetch bets', 'error');
                 console.error('Feeling Lucky failed', e);
             }
         });

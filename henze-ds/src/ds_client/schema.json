@@ -269,7 +269,10 @@
           "type": "array"
         },
         "meeting": {
-          "type": "null"
+          "anyOf": [
+            { "$ref": "#/definitions/Meeting" },
+            { "type": "null" }
+          ]
         },
         "name": {
           "type": "string"
@@ -458,6 +461,36 @@
       "title": "ID",
       "type": "string"
     },
+    "Meeting": {
+      "properties": {
+        "id": {
+          "format": "integer",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "code": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        },
+        "number": {
+          "anyOf": [
+            { "type": "integer" },
+            { "type": "null" }
+          ]
+        },
+        "date": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": ["id", "name", "date"],
+      "title": "Meeting",
+      "type": "object"
+    },
     "Market": {
       "properties": {
         "active": {
@@ -496,7 +529,10 @@
           "type": "integer"
         },
         "displaySortId": {
-          "type": "null"
+          "anyOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ]
         },
         "displayed": {
           "type": "boolean"
@@ -515,7 +551,10 @@
           "type": "array"
         },
         "groupCode": {
-          "$ref": "#/definitions/GroupCode"
+          "anyOf": [
+            { "$ref": "#/definitions/GroupCode" },
+            { "type": "null" }
+          ]
         },
         "handicapValue": {
           "anyOf": [

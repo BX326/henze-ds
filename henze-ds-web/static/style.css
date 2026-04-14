@@ -24,6 +24,26 @@ body {
     background-color: #004b32 !important;
 }
 
+/* Gold button (Find Bets) uses gold accent */
+.btn-gold {
+    background-color: #eaa800;
+    border-color: #eaa800;
+    color: #1a1a1a;
+}
+
+.btn-gold:hover,
+.btn-gold:focus {
+    background-color: #d49700;
+    border-color: #d49700;
+    color: #1a1a1a;
+}
+
+.btn-gold:active {
+    background-color: #c08600 !important;
+    border-color: #c08600 !important;
+    color: #1a1a1a !important;
+}
+
 /* Success button (Feeling Lucky) uses green accent */
 .btn-success {
     background-color: #00c978;
@@ -245,18 +265,28 @@ a:hover {
 .accordion-item {
     background-color: #242424;
     border-color: #444;
+    transition: border-color 0.2s ease;
+}
+
+.accordion-item:hover {
+    border-color: #555;
 }
 
 .accordion-button {
     background-color: #2a2a2a;
     color: #e0e0e0;
     padding: 1rem;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .accordion-button:not(.collapsed) {
     background-color: #333;
     color: #e0e0e0;
     box-shadow: none;
+}
+
+.accordion-button:hover {
+    background-color: #353535;
 }
 
 .accordion-button:focus {
@@ -266,11 +296,36 @@ a:hover {
 
 .accordion-button::after {
     filter: invert(1);
+    transition: transform 0.3s ease;
+}
+
+.accordion-collapse {
+    transition: height 0.35s ease, opacity 0.25s ease;
+}
+
+.accordion-collapse.collapsing {
+    opacity: 0.5;
+}
+
+.accordion-collapse.show {
+    opacity: 1;
 }
 
 .accordion-body {
     background-color: #242424;
     padding: 0;
+    animation: accordionFadeIn 0.3s ease;
+}
+
+@keyframes accordionFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Event header content layout */
@@ -360,6 +415,7 @@ a:hover {
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 /* Form select styling */
@@ -398,6 +454,327 @@ a:hover {
 .accordion-body .table > tbody > tr > td {
     border-bottom-color: #333;
     font-size: 0.875rem;
+}
+
+/* ========== Loading Animation ========== */
+.results-container {
+    position: relative;
+    min-height: 200px;
+}
+
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(26, 26, 26, 0.85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 100;
+    border-radius: 0.375rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    overflow: hidden;
+}
+
+.loading-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.loading-content {
+    position: sticky;
+    top: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+}
+
+.loading-dice {
+    width: 64px;
+    height: 64px;
+    animation: diceThrow 1.8s ease-in-out infinite;
+}
+
+.dice-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes diceThrow {
+    0% {
+        transform: translateY(0);
+    }
+    10% {
+        transform: translateY(-60px);
+    }
+    20% {
+        transform: translateY(-80px);
+    }
+    30% {
+        transform: translateY(-60px);
+    }
+    40% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-30px);
+    }
+    60% {
+        transform: translateY(0);
+    }
+    70% {
+        transform: translateY(-12px);
+    }
+    80% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    position: relative;
+}
+
+.loading-spinner::before,
+.loading-spinner::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+}
+
+.loading-spinner::before {
+    width: 100%;
+    height: 100%;
+    border: 3px solid #333;
+    border-top-color: #eaa800;
+    animation: spin 0.8s linear infinite;
+}
+
+.loading-spinner::after {
+    width: 60%;
+    height: 60%;
+    top: 20%;
+    left: 20%;
+    border: 3px solid #444;
+    border-bottom-color: #00c978;
+    animation: spin 1.2s linear infinite reverse;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-text {
+    margin-top: 1rem;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.loading-dots {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 4px;
+}
+
+.loading-dots span {
+    width: 4px;
+    height: 4px;
+    background: #eaa800;
+    border-radius: 50%;
+    animation: loadingDots 1.4s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes loadingDots {
+    0%, 80%, 100% {
+        opacity: 0.3;
+        transform: scale(0.8);
+    }
+    40% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+}
+
+/* Skeleton loader for table rows */
+.skeleton-loader {
+    padding: 1rem;
+}
+
+.skeleton-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-cell {
+    height: 1.25rem;
+    background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.5s ease-in-out infinite;
+    border-radius: 0.25rem;
+}
+
+.skeleton-cell:nth-child(1) { flex: 2; }
+.skeleton-cell:nth-child(2) { flex: 1; }
+.skeleton-cell:nth-child(3) { width: 60px; flex: none; }
+
+@keyframes skeletonPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+@keyframes skeletonShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ========== Empty State ========== */
+.empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+}
+
+.empty-state-icon {
+    width: 120px;
+    height: auto;
+    margin-bottom: 1.5rem;
+    opacity: 0.6;
+    animation: emptyStateBob 3s ease-in-out infinite;
+}
+
+@keyframes emptyStateBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+.empty-state h5 {
+    color: #888;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0;
+}
+
+/* ========== Toast Notifications ========== */
+.toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    pointer-events: none;
+}
+
+.toast {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 0.5rem;
+    padding: 0.875rem 1.25rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 280px;
+    max-width: 400px;
+    pointer-events: auto;
+    transform: translateX(120%);
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55), opacity 0.3s ease;
+}
+
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.toast.hiding {
+    transform: translateX(120%);
+    opacity: 0;
+}
+
+.toast-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.toast-icon.success { color: #00c978; }
+.toast-icon.info { color: #eaa800; }
+.toast-icon.warning { color: #ffc107; }
+.toast-icon.error { color: #dc3545; }
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-weight: 600;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+}
+
+.toast-message {
+    color: #aaa;
+    font-size: 0.8rem;
+    margin-top: 0.125rem;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 0.25rem;
+    font-size: 1rem;
+    transition: color 0.2s ease;
+}
+
+.toast-close:hover {
+    color: #e0e0e0;
+}
+
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: #eaa800;
+    border-radius: 0 0 0.5rem 0.5rem;
+    animation: toastProgress linear forwards;
+}
+
+@keyframes toastProgress {
+    from { width: 100%; }
+    to { width: 0%; }
 }
 
 /* Responsive adjustments for accordion */

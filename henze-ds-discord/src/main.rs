@@ -1,104 +1,31 @@
-use henze_ds::{HenzeFilter, HenzeInfo};
-use rand::seq::SliceRandom;
-use serenity::all::{ChannelId, CreateEmbed, CreateEmbedFooter, CreateMessage, GatewayIntents, Http};
+//! Henze Discord Bot - sends daily curated betting picks to a Discord channel.
+//!
+//! # Usage
+//! - `--now`: Send daily bets immediately (for testing)
+//! - `--test-ai`: Test AI selection without Discord (prints results)
+//!
+//! # Environment Variables
+//! - `DISCORD_TOKEN`: Discord bot token (required)
+//! - `DISCORD_CHANNEL_ID`: Target channel ID (required)
+//! - `OPENAI_API_KEY`: OpenAI API key (optional, enables AI selection)
+//! - `CRON_SCHEDULE`: Cron expression for scheduling (default: "0 0 8 * * *")
+//! - `SYSTEM_PROMPT`: Custom system prompt for AI (optional)
+
+mod config;
+mod discord;
+mod openai;
+
+use henze_ds::HenzeFilter;
+use serenity::all::{ChannelId, GatewayIntents, Http};
 use serenity::prelude::*;
 use std::env;
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::{error, info};
 
-/// Number of bets to include in the daily message
-const BETS_PER_MESSAGE: usize = 3;
-
-/// Fetch Henze bets and return up to `count` random ones
-async fn fetch_random_bets(count: usize) -> Result<Vec<HenzeInfo>, Box<dyn std::error::Error + Send + Sync>> {
-    let filter = HenzeFilter::default();
-    let mut bets = henze_ds::retrieve_henze_data_with_filter(filter)
-        .await
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
-    
-    // Shuffle and take up to `count` bets
-    let mut rng = rand::thread_rng();
-    bets.shuffle(&mut rng);
-    bets.truncate(count);
-    
-    Ok(bets)
-}
-
-/// Format a single bet as an embed field
-fn format_bet(bet: &HenzeInfo) -> (String, String, bool) {
-    let title = format!("⚽ {}", bet.event_name);
-    let description = format!(
-        "**Market:** {}\n**Outcome:** {}\n**Odds:** {:.2}\n**Time:** {}\n[View Event]({})",
-        bet.market_name,
-        bet.outcome,
-        bet.decimal,
-        bet.event_time,
-        bet.event_url
-    );
-    (title, description, false)
-}
-
-/// Create the daily bets embed message
-fn create_bets_embed(bets: &[HenzeInfo]) -> CreateEmbed {
-    let mut embed = CreateEmbed::new()
-        .title("🎰 Daily Henze Bets")
-        .description(format!(
-            "Here are today's {} Henze bets with odds around 1.10 (±0.04):",
-            bets.len()
-        ))
-        .color(0x00FF00);
-    
-    for bet in bets {
-        let (title, description, inline) = format_bet(bet);
-        embed = embed.field(title, description, inline);
-    }
-    
-    embed = embed.footer(CreateEmbedFooter::new(
-        "Disclaimer: Gambling involves risk. Please bet responsibly."
-    ));
-    
-    embed
-}
-
-/// Send the daily bets message to the specified channel
-async fn send_daily_bets(http: Arc<Http>, channel_id: ChannelId) {
-    info!("Fetching daily Henze bets...");
-    
-    match fetch_random_bets(BETS_PER_MESSAGE).await {
-        Ok(bets) if bets.is_empty() => {
-            info!("No bets found for today");
-            let message = CreateMessage::new().content("No Henze bets available today. Check back tomorrow!");
-            if let Err(e) = channel_id.send_message(&http, message).await {
-                error!("Failed to send message: {:?}", e);
-            }
-        }
-        Ok(bets) => {
-            info!("Found {} bets, sending to channel", bets.len());
-            let embed = create_bets_embed(&bets);
-            let message = CreateMessage::new().embed(embed);
-            if let Err(e) = channel_id.send_message(&http, message).await {
-                error!("Failed to send message: {:?}", e);
-            }
-        }
-        Err(e) => {
-            error!("Failed to fetch bets: {:?}", e);
-            let message = CreateMessage::new().content("Failed to fetch today's bets. Please try again later.");
-            if let Err(e) = channel_id.send_message(&http, message).await {
-                error!("Failed to send error message: {:?}", e);
-            }
-        }
-    }
-}
-
-struct Handler;
-
-#[serenity::async_trait]
-impl EventHandler for Handler {
-    async fn ready(&self, _: Context, ready: serenity::model::gateway::Ready) {
-        info!("{} is connected!", ready.user.name);
-    }
-}
+use config::BETS_PER_MESSAGE;
+use discord::{send_daily_bets, Handler};
+use openai::fetch_best_bets;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -110,9 +37,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    // Check for --now flag (send immediately and exit)
+    // Check for flags
     let args: Vec<String> = env::args().collect();
     let send_now = args.iter().any(|arg| arg == "--now");
+    let test_ai = args.iter().any(|arg| arg == "--test-ai");
+
+    // Test AI selection without Discord (just prints results)
+    if test_ai {
+        info!("Testing AI selection...");
+        
+        // First show how many bets are available
+        let filter = HenzeFilter::default();
+        let all_bets = henze_ds::retrieve_henze_data_with_filter(filter)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        println!("\n📊 Found {} bets in odds range 1.06-1.14\n", all_bets.len());
+        
+        match fetch_best_bets(BETS_PER_MESSAGE).await {
+            Ok(bets) if bets.is_empty() => {
+                println!("No bets found.");
+            }
+            Ok(bets) => {
+                println!("\n🎰 AI-Selected Bets:\n");
+                for (i, bet) in bets.iter().enumerate() {
+                    println!("{}. {} ({}):", i + 1, bet.event_name, bet.sport_name);
+                    println!("   Market: {}", bet.market_name);
+                    println!("   Outcome: {} @ {:.2}", bet.outcome, bet.decimal);
+                    println!("   Time: {}", bet.event_time);
+                    println!("   Live: {}", if bet.is_live { "Yes" } else { "No" });
+                    println!("   URL: {}\n", bet.event_url);
+                }
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
+            }
+        }
+        return Ok(());
+    }
 
     // Load configuration from environment
     let token = env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN must be set");
@@ -170,15 +131,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_fetch_bets() {
-        let bets = fetch_random_bets(3).await;
-        assert!(bets.is_ok());
-    }
 }

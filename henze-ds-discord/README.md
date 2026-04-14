@@ -5,7 +5,9 @@ A Discord bot that posts daily Henze bets to a specified channel.
 ## Features
 
 - Fetches Henze bets with odds around 1.10 (±0.04)
-- Posts 3 random bets daily at a configurable time
+- **AI-powered bet selection** using OpenAI GPT-4o-mini to pick the most interesting bets
+- Falls back to random selection if OpenAI is not configured
+- Posts 3 curated bets daily at a configurable time
 - Beautiful embed messages with bet details and links
 
 ## Configuration
@@ -17,6 +19,8 @@ Set the following environment variables:
 | `DISCORD_TOKEN` | Yes | Your Discord bot token | `MTIz...` |
 | `DISCORD_CHANNEL_ID` | Yes | The channel ID to post bets to | `123456789012345678` |
 | `CRON_SCHEDULE` | No | Cron expression for daily posting | `0 0 8 * * *` (default: 8:00 AM UTC) |
+| `OPENAI_API_KEY` | No | OpenAI API key for AI-powered selection | `sk-...` |
+| `SYSTEM_PROMPT` | No | Custom AI system prompt (overrides default) | `You are a betting expert...` |
 
 ## Setup
 
@@ -69,5 +73,17 @@ You can also run the bot using Docker:
 
 ```bash
 docker build -t henze-discord-bot .
-docker run -e DISCORD_TOKEN=... -e DISCORD_CHANNEL_ID=... henze-discord-bot
+docker run -e DISCORD_TOKEN=... -e DISCORD_CHANNEL_ID=... -e OPENAI_API_KEY=... henze-discord-bot
 ```
+
+## AI-Powered Bet Selection
+
+When `OPENAI_API_KEY` is set, the bot uses GPT-4o-mini to intelligently select bets based on:
+
+1. **High-profile matches** - Prioritizes major leagues and popular teams
+2. **Clear market types** - Prefers straightforward markets like Match Result, Over/Under
+3. **Timing** - Considers when each match starts
+4. **Variety** - Diversifies across different sports and markets
+5. **Live matches** - Gives priority to exciting live matches from major leagues
+
+If the AI selection fails or `OPENAI_API_KEY` is not set, the bot falls back to random selection.
