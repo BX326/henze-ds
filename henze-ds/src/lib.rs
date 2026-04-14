@@ -140,14 +140,15 @@ pub async fn retrieve_henze_data_with_filter(
                         let sport_id = sport_id.clone();
                         let sport_name = sport_name.clone();
                         outcome.prices.iter().filter_map(move |price| {
-                            (price.decimal >= min_odds && price.decimal <= max_odds).then(|| HenzeInfo {
+                            let decimal = price.decimal?;
+                            (decimal >= min_odds && decimal <= max_odds).then(|| HenzeInfo {
                                 event_id: event_id.clone(),
                                 event_name: event_name.clone(),
                                 event_time: event_time.clone(),
                                 event_time_utc: event_time_utc.to_rfc3339(),
                                 market_name: market_name.clone().to_string(),
                                 outcome: outcome_name.clone(),
-                                decimal: price.decimal,
+                                decimal,
                                 event_url: event_url.clone(),
                                 is_live,
                                 match_minute,
