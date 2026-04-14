@@ -792,7 +792,10 @@
           "type": "array"
         },
         "displayOrder": {
-          "type": "integer"
+          "anyOf": [
+            { "type": "integer" },
+            { "type": "null" }
+          ]
         },
         "displayed": {
           "type": "boolean"
@@ -841,7 +844,10 @@
           ]
         },
         "runnerNumber": {
-          "type": "integer"
+          "anyOf": [
+            { "type": "integer" },
+            { "type": "null" }
+          ]
         },
         "status": {
           "$ref": "#/definitions/Status"
@@ -983,13 +989,22 @@
     "Price": {
       "properties": {
         "decimal": {
-          "type": "number"
+          "anyOf": [
+            { "type": "number" },
+            { "type": "null" }
+          ]
         },
         "denominator": {
-          "type": "integer"
+          "anyOf": [
+            { "type": "integer" },
+            { "type": "null" }
+          ]
         },
         "displayOrder": {
-          "type": "integer"
+          "anyOf": [
+            { "type": "integer" },
+            { "type": "null" }
+          ]
         },
         "handicapHigh": {
           "anyOf": [
@@ -1012,10 +1027,16 @@
           ]
         },
         "numerator": {
-          "type": "integer"
+          "anyOf": [
+            { "type": "integer" },
+            { "type": "null" }
+          ]
         },
         "priceType": {
-          "$ref": "#/definitions/PriceType"
+          "anyOf": [
+            { "$ref": "#/definitions/PriceType" },
+            { "type": "null" }
+          ]
         }
       },
       "required": [
