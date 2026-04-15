@@ -1,11 +1,12 @@
 //! Discord message formatting and sending utilities.
 
-use henze_ds::HenzeInfo;
+use henze_ds::{BetOption, HenzeInfo};
 use serenity::all::{ChannelId, CreateEmbed, CreateEmbedFooter, CreateMessage, Http};
 use std::sync::Arc;
 use tracing::{error, info};
 
 use crate::config::BETS_PER_MESSAGE;
+use crate::db::{Bet, BetRun, BetStatus};
 use crate::openai::fetch_best_bets;
 
 /// Format a single bet as an embed field.
@@ -70,4 +71,118 @@ pub async fn send_daily_bets(http: Arc<Http>, channel_id: ChannelId) {
             }
         }
     }
+}
+
+/// Announce a bet that was just placed.
+pub async fn announce_bet_placed(
+    http: &Http,
+    channel_id: ChannelId,
+    run_number: i64,
+    bet: &Bet,
+    option: &BetOption,
+) -> Result<(), serenity::Error> {
+    let embed = CreateEmbed::new()
+        .title(format!("🎯 Bet Placed - Run #{}", run_number))
+        .description(format!(
+            "**{}**\n{} • {}",
+            option.event_name, option.sport_name, option.category_name
+        ))
+        .field("Market", &option.market_name, true)
+        .field("Outcome", &option.outcome_name, true)
+        .field("Odds", format!("{:.2}", option.odds), true)
+        .field("Stake", format!("{:.2} DKK", bet.stake), true)
+        .field("Potential Return", format!("{:.2} DKK", bet.potential_return), true)
+        .field("Placed By", format!("<@{}>", bet.placed_by), true)
+        .url(&option.event_url)
+        .color(0x3498DB) // Blue
+        .footer(CreateEmbedFooter::new("Waiting for result..."));
+
+    let message = CreateMessage::new().embed(embed);
+    channel_id.send_message(http, message).await?;
+    Ok(())
+}
+
+/// Announce the result of a bet.
+pub async fn announce_bet_result(
+    http: &Http,
+    channel_id: ChannelId,
+    run_number: i64,
+    bet: &Bet,
+    run: &BetRun,
+    result: BetStatus,
+) -> Result<(), serenity::Error> {
+    let (title, description, color) = match result {
+        BetStatus::Won => {
+            let new_amount = bet.stake * bet.odds;
+            (
+                format!("✅ Bet Won! - Run #{}", run_number),
+                format!(
+                    "**{}** won!\n\n\
+                    {} → {} @ {:.2}\n\n\
+                    **Stake:** {:.2} DKK\n\
+                    **Winnings:** {:.2} DKK\n\
+                    **New Balance:** {:.2} DKK\n\n\
+                    🎰 Ready for the next bet!",
+                    bet.event_name,
+                    bet.market_name,
+                    bet.outcome_name,
+                    bet.odds,
+                    bet.stake,
+                    new_amount,
+                    new_amount
+                ),
+                0x2ECC71, // Green
+            )
+        }
+        BetStatus::Lost => {
+            (
+                format!("❌ Bet Lost! - Run #{}", run_number),
+                format!(
+                    "**{}** lost.\n\n\
+                    {} → {} @ {:.2}\n\n\
+                    **Stake Lost:** {:.2} DKK\n\
+                    **Final Balance:** 0 DKK\n\n\
+                    💔 Run #{} has ended.",
+                    bet.event_name,
+                    bet.market_name,
+                    bet.outcome_name,
+                    bet.odds,
+                    bet.stake,
+                    run_number
+                ),
+                0xE74C3C, // Red
+            )
+        }
+        BetStatus::Void => (
+            format!("⚠️ Bet Voided - Run #{}", run_number),
+            format!(
+                "**{}** was voided.\n\n\
+                {} → {} @ {:.2}\n\n\
+                **Stake Refunded:** {:.2} DKK\n\
+                **Current Balance:** {:.2} DKK\n\n\
+                Place a new bet to continue!",
+                bet.event_name,
+                bet.market_name,
+                bet.outcome_name,
+                bet.odds,
+                bet.stake,
+                run.current_amount
+            ),
+            0xF39C12, // Orange
+        ),
+        BetStatus::Pending => {
+            // Shouldn't announce pending, but handle it anyway
+            return Ok(());
+        }
+    };
+
+    let embed = CreateEmbed::new()
+        .title(title)
+        .description(description)
+        .color(color)
+        .field("Placed By", format!("<@{}>", bet.placed_by), true);
+
+    let message = CreateMessage::new().embed(embed);
+    channel_id.send_message(http, message).await?;
+    Ok(())
 }

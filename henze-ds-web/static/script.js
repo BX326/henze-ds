@@ -80,15 +80,364 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Show loading animation when form is submitted (Find Bets button)
-    const searchForm = document.querySelector('form[action="/"]');
+    const searchForm = document.getElementById('filter-form');
     if (searchForm) {
         searchForm.addEventListener('submit', function() {
             showLoading();
         });
     }
 
+    // ========== Advanced Filters System (100% Client-Side) ==========
+    
+    // Elements
+    const advancedFiltersToggle = document.getElementById('advanced-filters-toggle');
+    const advancedFiltersCollapse = document.getElementById('advancedFilters');
+    const activeFilterCountBadge = document.getElementById('active-filter-count');
+    const leagueFilter = document.getElementById('league-filter');
+    const liveStatusRadios = document.querySelectorAll('input[name="live_status"]');
+    const timePresetSelect = document.getElementById('time-preset-select');
+    const customTimeRange = document.getElementById('custom-time-range');
+    const fromTimeInput = document.getElementById('from-time-input');
+    const toTimeInput = document.getElementById('to-time-input');
+    const clearFiltersBtn = document.getElementById('clear-filters');
+    
+    // Get all event accordion items
+    const allEventItems = document.querySelectorAll('.accordion-item[data-event-id]');
+    
+    // Count visible events and markets
+    function countVisibleResults() {
+        let visibleEvents = 0;
+        let visibleMarkets = 0;
+        let visibleLive = 0;
+        
+        allEventItems.forEach(item => {
+            if (!item.classList.contains('filter-hidden')) {
+                visibleEvents++;
+                const marketRows = item.querySelectorAll('tbody tr[data-event-id]');
+                visibleMarkets += marketRows.length;
+                if (item.dataset.isLive === 'true') {
+                    visibleLive++;
+                }
+            }
+        });
+        
+        return { events: visibleEvents, markets: visibleMarkets, live: visibleLive };
+    }
+    
+    // Update results count badge
+    function updateResultsCount() {
+        const counts = countVisibleResults();
+        const badge = document.querySelector('.card-header .badge.bg-secondary');
+        if (badge) {
+            badge.textContent = `${counts.events} event${counts.events !== 1 ? 's' : ''} (${counts.markets} market${counts.markets !== 1 ? 's' : ''})`;
+        }
+        // Also update the info text in the league filter section
+        const infoText = document.querySelector('.card-filter .form-text');
+        if (infoText) {
+            infoText.innerHTML = `<i class="bi bi-info-circle me-1"></i> Showing ${counts.events} events`;
+        }
+    }
+    
+    // Count active filters
+    function countActiveFilters() {
+        let count = 0;
+        
+        // Time filter
+        const timePreset = timePresetSelect?.value || 'all';
+        if (timePreset !== 'all') count++;
+        
+        // League filter
+        if (leagueFilter && leagueFilter.value) count++;
+        
+        // Live status filter
+        const liveStatus = document.querySelector('input[name="live_status"]:checked')?.value || 'all';
+        if (liveStatus !== 'all') count++;
+        
+        return count;
+    }
+    
+    // Update active filter count badge
+    function updateFilterCountBadge() {
+        if (!activeFilterCountBadge) return;
+        
+        const count = countActiveFilters();
+        if (count > 0) {
+            activeFilterCountBadge.textContent = count;
+            activeFilterCountBadge.style.display = 'inline';
+        } else {
+            activeFilterCountBadge.style.display = 'none';
+        }
+    }
+    
+    // Get time range based on preset
+    function getTimeRange(preset) {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+        
+        switch (preset) {
+            case 'next2h':
+                return { from: now, to: new Date(now.getTime() + 2 * 60 * 60 * 1000) };
+            case 'today':
+                return { from: todayStart, to: tomorrowStart };
+            case 'tomorrow':
+                return { from: tomorrowStart, to: new Date(tomorrowStart.getTime() + 24 * 60 * 60 * 1000) };
+            case 'week':
+                return { from: now, to: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) };
+            case 'custom':
+                const fromVal = fromTimeInput?.value;
+                const toVal = toTimeInput?.value;
+                return {
+                    from: fromVal ? new Date(fromVal) : null,
+                    to: toVal ? new Date(toVal) : null
+                };
+            default: // 'all'
+                return { from: null, to: null };
+        }
+    }
+    
+    // Apply all client-side filters
+    function applyAllFilters() {
+        const selectedLeague = leagueFilter?.value || '';
+        const selectedLiveStatus = document.querySelector('input[name="live_status"]:checked')?.value || 'all';
+        const timePreset = timePresetSelect?.value || 'all';
+        const timeRange = getTimeRange(timePreset);
+        
+        let visibleCount = 0;
+        let hiddenCount = 0;
+        
+        allEventItems.forEach(item => {
+            let shouldShow = true;
+            
+            // League filter (using class_id)
+            if (selectedLeague && item.dataset.classId !== selectedLeague) {
+                shouldShow = false;
+            }
+            
+            // Live status filter
+            const isLive = item.dataset.isLive === 'true';
+            if (selectedLiveStatus === 'live' && !isLive) {
+                shouldShow = false;
+            } else if (selectedLiveStatus === 'upcoming' && isLive) {
+                shouldShow = false;
+            }
+            
+            // Time range filter
+            if (shouldShow && (timeRange.from || timeRange.to)) {
+                const eventTimeStr = item.dataset.eventTimeUtc;
+                if (eventTimeStr) {
+                    const eventTime = new Date(eventTimeStr);
+                    if (timeRange.from && eventTime < timeRange.from) {
+                        shouldShow = false;
+                    }
+                    if (timeRange.to && eventTime > timeRange.to) {
+                        shouldShow = false;
+                    }
+                }
+            }
+            
+            // Apply visibility
+            if (shouldShow) {
+                item.classList.remove('filter-hidden');
+                visibleCount++;
+            } else {
+                item.classList.add('filter-hidden');
+                hiddenCount++;
+            }
+        });
+        
+        // Update counts
+        updateResultsCount();
+        updateFilterCountBadge();
+        
+        // Show toast only when filters are actively changed (not on load)
+        if (document.activeElement && hiddenCount > 0 && visibleCount > 0) {
+            showToast('Filters applied', `Showing ${visibleCount} event${visibleCount !== 1 ? 's' : ''}`, 'info', 2000);
+        } else if (document.activeElement && visibleCount === 0 && hiddenCount > 0) {
+            showToast('No matches', 'No events match the selected filters', 'warning');
+        }
+        
+        // Save filter state to localStorage
+        saveFilterState();
+    }
+    
+    // Save filter state to localStorage
+    function saveFilterState() {
+        const state = {
+            leagueId: leagueFilter?.value || '',
+            liveStatus: document.querySelector('input[name="live_status"]:checked')?.value || 'all',
+            timePreset: timePresetSelect?.value || 'all',
+            fromTime: fromTimeInput?.value || '',
+            toTime: toTimeInput?.value || ''
+        };
+        try {
+            localStorage.setItem('henzeFilters', JSON.stringify(state));
+        } catch (e) {
+            console.warn('Could not save filter state', e);
+        }
+    }
+    
+    // Load filter state from localStorage
+    function loadFilterState() {
+        try {
+            const saved = localStorage.getItem('henzeFilters');
+            if (saved) {
+                const state = JSON.parse(saved);
+                
+                // Restore league filter
+                if (leagueFilter && state.leagueId) {
+                    const option = leagueFilter.querySelector(`option[value="${state.leagueId}"]`);
+                    if (option) leagueFilter.value = state.leagueId;
+                }
+                
+                // Restore live status
+                if (state.liveStatus) {
+                    const radio = document.getElementById(`status-${state.liveStatus}`);
+                    if (radio) radio.checked = true;
+                }
+                
+                // Restore time preset
+                if (state.timePreset && timePresetSelect) {
+                    timePresetSelect.value = state.timePreset;
+                }
+                
+                // Restore custom time values
+                if (fromTimeInput && state.fromTime) fromTimeInput.value = state.fromTime;
+                if (toTimeInput && state.toTime) toTimeInput.value = state.toTime;
+                
+                // Apply the restored filters (without showing toast)
+                toggleCustomTimeRange();
+                
+                // Apply filters silently (don't trigger change events)
+                const selectedLeague = leagueFilter?.value || '';
+                const selectedLiveStatus = document.querySelector('input[name="live_status"]:checked')?.value || 'all';
+                const timePreset = timePresetSelect?.value || 'all';
+                const timeRange = getTimeRange(timePreset);
+                
+                allEventItems.forEach(item => {
+                    let shouldShow = true;
+                    
+                    if (selectedLeague && item.dataset.classId !== selectedLeague) {
+                        shouldShow = false;
+                    }
+                    
+                    const isLive = item.dataset.isLive === 'true';
+                    if (selectedLiveStatus === 'live' && !isLive) {
+                        shouldShow = false;
+                    } else if (selectedLiveStatus === 'upcoming' && isLive) {
+                        shouldShow = false;
+                    }
+                    
+                    if (shouldShow && (timeRange.from || timeRange.to)) {
+                        const eventTimeStr = item.dataset.eventTimeUtc;
+                        if (eventTimeStr) {
+                            const eventTime = new Date(eventTimeStr);
+                            if (timeRange.from && eventTime < timeRange.from) shouldShow = false;
+                            if (timeRange.to && eventTime > timeRange.to) shouldShow = false;
+                        }
+                    }
+                    
+                    if (shouldShow) {
+                        item.classList.remove('filter-hidden');
+                    } else {
+                        item.classList.add('filter-hidden');
+                    }
+                });
+                
+                updateResultsCount();
+                updateFilterCountBadge();
+            }
+        } catch (e) {
+            console.warn('Could not load filter state', e);
+        }
+    }
+    
+    // Toggle custom time range visibility
+    function toggleCustomTimeRange() {
+        const selectedPreset = timePresetSelect?.value || 'all';
+        if (customTimeRange) {
+            customTimeRange.style.display = selectedPreset === 'custom' ? 'block' : 'none';
+        }
+    }
+    
+    // Event listener for time preset dropdown
+    if (timePresetSelect) {
+        timePresetSelect.addEventListener('change', function() {
+            toggleCustomTimeRange();
+            applyAllFilters();
+        });
+    }
+    
+    // Custom time inputs
+    if (fromTimeInput) {
+        fromTimeInput.addEventListener('change', applyAllFilters);
+    }
+    if (toTimeInput) {
+        toTimeInput.addEventListener('change', applyAllFilters);
+    }
+    
+    // League filter
+    if (leagueFilter) {
+        leagueFilter.addEventListener('change', applyAllFilters);
+    }
+    
+    // Live status radios
+    liveStatusRadios.forEach(radio => {
+        radio.addEventListener('change', applyAllFilters);
+    });
+    
+    // Clear filters button
+    if (clearFiltersBtn) {
+        clearFiltersBtn.addEventListener('click', function() {
+            // Reset all filters
+            if (leagueFilter) leagueFilter.value = '';
+            
+            const statusAllRadio = document.getElementById('status-all');
+            if (statusAllRadio) statusAllRadio.checked = true;
+            
+            if (timePresetSelect) timePresetSelect.value = 'all';
+            
+            if (fromTimeInput) fromTimeInput.value = '';
+            if (toTimeInput) toTimeInput.value = '';
+            
+            toggleCustomTimeRange();
+            
+            // Clear localStorage
+            try {
+                localStorage.removeItem('henzeFilters');
+            } catch (e) {}
+            
+            // Show all events
+            allEventItems.forEach(item => {
+                item.classList.remove('filter-hidden');
+            });
+            
+            updateResultsCount();
+            updateFilterCountBadge();
+            
+            showToast('Filters cleared', 'Showing all events', 'info', 2000);
+        });
+    }
+    
+    // Toggle button icon rotation when advanced filters collapse/expand
+    if (advancedFiltersCollapse) {
+        advancedFiltersCollapse.addEventListener('shown.bs.collapse', function() {
+            const icon = advancedFiltersToggle?.querySelector('.toggle-icon');
+            if (icon) icon.classList.add('rotated');
+        });
+        advancedFiltersCollapse.addEventListener('hidden.bs.collapse', function() {
+            const icon = advancedFiltersToggle?.querySelector('.toggle-icon');
+            if (icon) icon.classList.remove('rotated');
+        });
+    }
+    
+    // Initialize
+    toggleCustomTimeRange();
+    updateFilterCountBadge();
+    loadFilterState();
+
     // Auto-expand live events on page load
-    const liveEvents = document.querySelectorAll('.live-event .accordion-button');
+    const liveEvents = document.querySelectorAll('.live-event:not(.filter-hidden) .accordion-button');
     if (liveEvents.length > 0 && liveEvents.length <= 3) {
         // Auto-expand all live events if there are 3 or fewer
         liveEvents.forEach(button => {
