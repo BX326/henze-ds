@@ -10,10 +10,15 @@
 //! - `OPENAI_API_KEY`: OpenAI API key (optional, enables AI selection)
 //! - `CRON_SCHEDULE`: Cron expression for scheduling (default: "0 0 8 * * *")
 //! - `SYSTEM_PROMPT`: Custom system prompt for AI (optional)
+//! - `DATABASE_PATH`: Path to SQLite database (default: "henze_bets.db")
+//! - `SETTLEMENT_INTERVAL_SECS`: Settlement check interval (default: 300)
 
+mod commands;
 mod config;
+mod db;
 mod discord;
 mod openai;
+mod settlement;
 
 use henze_ds::HenzeFilter;
 use serenity::all::{ChannelId, GatewayIntents, Http};
@@ -23,8 +28,8 @@ use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::{error, info};
 
-use config::BETS_PER_MESSAGE;
-use discord::{send_daily_bets, Handler};
+use config::{get_database_path, get_settlement_interval_secs, BETS_PER_MESSAGE};
+use discord::{send_daily_bets, DbPoolKey, Handler};
 use openai::fetch_best_bets;
 
 #[tokio::main]
@@ -102,13 +107,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Cron schedule: {}", cron_schedule);
 
-    // Create the Discord client
+    // Initialize database
+    let db_path = get_database_path();
+    let db = db::init_db(&db_path).expect("Failed to initialize database");
+    info!("Database initialized at {:?}", db_path);
+
+    // Create the Discord client with database in context
     let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES;
-    let client = Client::builder(&token, intents)
+    let mut client = Client::builder(&token, intents)
         .event_handler(Handler)
         .await?;
 
-    // Set up the scheduler
+    // Store database pool in client data
+    {
+        let mut data = client.data.write().await;
+        data.insert::<DbPoolKey>(db.clone());
+    }
+
+    // Set up the scheduler for daily bets
     let scheduler = JobScheduler::new().await?;
     
     let http_clone = http.clone();
@@ -122,10 +138,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     scheduler.add(job).await?;
     scheduler.start().await?;
 
-    info!("Scheduler started. Bot is running...");
+    info!("Scheduler started.");
+
+    // Start settlement checker in background
+    let settlement_interval = get_settlement_interval_secs();
+    let http_for_settlement = http.clone();
+    let db_for_settlement = db.clone();
+    tokio::spawn(async move {
+        settlement::start_settlement_checker(http_for_settlement, db_for_settlement, settlement_interval).await;
+    });
+
+    info!("Settlement checker started with {}s interval", settlement_interval);
+    info!("Bot is running...");
 
     // Run the Discord client
-    let mut client = client;
     if let Err(e) = client.start().await {
         error!("Client error: {:?}", e);
     }

@@ -800,3 +800,193 @@ a:hover {
         margin-left: 0 !important;
     }
 }
+
+/* ========== Advanced Filters ========== */
+
+/* Filter hidden state (client-side filtering) */
+.accordion-item.filter-hidden {
+    display: none !important;
+}
+
+/* Advanced filters toggle button */
+#advanced-filters-toggle {
+    border-color: #444;
+    color: #aaa;
+    transition: all 0.2s ease;
+}
+
+#advanced-filters-toggle:hover {
+    border-color: #eaa800;
+    color: #eaa800;
+}
+
+#advanced-filters-toggle .toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+#advanced-filters-toggle .toggle-icon.rotated {
+    transform: rotate(180deg);
+}
+
+/* Filter section cards */
+.card-filter {
+    background-color: #1e1e1e;
+    border-color: #333;
+}
+
+.card-filter .card-header {
+    background-color: #252525;
+    border-bottom-color: #333;
+    color: #ccc;
+}
+
+.card-filter .card-body {
+    background-color: #1e1e1e;
+}
+
+/* Time preset buttons */
+.time-presets .btn-outline-secondary {
+    border-color: #333;
+    color: #aaa;
+    text-align: left;
+    padding: 0.4rem 0.75rem;
+}
+
+.time-presets .btn-outline-secondary:hover {
+    border-color: #555;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+}
+
+.time-presets .btn-check:checked + .btn-outline-secondary {
+    background-color: #004b32;
+    border-color: #004b32;
+    color: #00c978;
+}
+
+/* Custom time range inputs */
+#custom-time-range input[type="datetime-local"] {
+    background-color: #2a2a2a;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+#custom-time-range input[type="datetime-local"]:focus {
+    border-color: #eaa800;
+    box-shadow: 0 0 0 0.25rem rgba(234, 168, 0, 0.25);
+}
+
+/* Live only toggle switch */
+.form-check-input:checked {
+    background-color: #00c978;
+    border-color: #00c978;
+}
+
+.form-check-input:focus {
+    border-color: #00c978;
+    box-shadow: 0 0 0 0.25rem rgba(0, 201, 120, 0.25);
+}
+
+/* Pulse animation for small live indicators */
+.pulse-small {
+    animation: pulse 1.5s infinite;
+    font-size: 0.4rem;
+}
+
+/* Event status button group */
+.btn-group .btn-outline-secondary {
+    border-color: #444;
+    color: #aaa;
+}
+
+.btn-group .btn-outline-secondary:hover {
+    border-color: #555;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+}
+
+.btn-group .btn-check:checked + .btn-outline-secondary {
+    background-color: #004b32;
+    border-color: #004b32;
+    color: #00c978;
+}
+
+/* Category badge (league name) */
+.league-badge {
+    display: inline-block;
+    background-color: #1e3a2f;
+    color: #7ac9a2;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.2rem;
+    font-size: 0.65rem;
+    font-weight: 500;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Active filter count badge */
+#active-filter-count {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+}
+
+/* Filter select dropdowns */
+.card-filter .form-select-sm {
+    background-color: #2a2a2a;
+    border-color: #444;
+    color: #e0e0e0;
+    font-size: 0.85rem;
+}
+
+.card-filter .form-select-sm:focus {
+    border-color: #eaa800;
+    box-shadow: 0 0 0 0.25rem rgba(234, 168, 0, 0.25);
+}
+
+/* Apply/Clear filter buttons */
+#apply-filters {
+    background-color: #004b32;
+    border-color: #004b32;
+}
+
+#apply-filters:hover {
+    background-color: #005c3d;
+    border-color: #005c3d;
+}
+
+#clear-filters {
+    border-color: #444;
+    color: #888;
+}
+
+#clear-filters:hover {
+    border-color: #666;
+    color: #ccc;
+    background-color: #2a2a2a;
+}
+
+/* Collapse animation for advanced filters */
+#advancedFilters {
+    transition: height 0.35s ease;
+}
+
+/* Responsive adjustments for advanced filters */
+@media (max-width: 767.98px) {
+    .card-filter {
+        margin-bottom: 0.5rem;
+    }
+    
+    .time-presets {
+        font-size: 0.85rem;
+    }
+    
+    .category-badge {
+        max-width: 100px;
+    }
+    
+    #advanced-filters-toggle {
+        font-size: 0.85rem;
+    }
+}
