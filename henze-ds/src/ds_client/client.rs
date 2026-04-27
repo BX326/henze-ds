@@ -88,10 +88,22 @@ pub struct EventListResponse {
     pub data: EventListData,
 }
 
+fn deserialize_events<'de, D>(deserializer: D) -> Result<Vec<EventListEvent>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Deserialize;
+    match Option::<Vec<EventListEvent>>::deserialize(deserializer) {
+        Ok(Some(events)) => Ok(events),
+        Ok(None) => Ok(vec![]),
+        Err(_) => Ok(vec![]),
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EventListData {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_events")]
     pub events: Vec<EventListEvent>,
 }
 
@@ -142,7 +154,7 @@ pub struct EventOutcome {
     pub resulted: bool,
     #[serde(default)]
     pub status: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_prices")]
     pub prices: Vec<EventPrice>,
 }
 
@@ -153,7 +165,7 @@ pub struct EventMarket {
     pub id: String,
     #[serde(default)]
     pub name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_outcomes")]
     pub outcomes: Vec<EventOutcome>,
 }
 
@@ -176,7 +188,7 @@ pub struct EventListEvent {
     pub class_field: EventClass,
     #[serde(default)]
     pub commentary: Option<EventCommentary>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_markets")]
     pub markets: Vec<EventMarket>,
 }
 
@@ -187,6 +199,51 @@ where
     use serde::de::Deserialize;
     let opt = Option::<DateTime<Utc>>::deserialize(deserializer)?;
     Ok(opt.unwrap_or_else(|| Utc::now()))
+}
+
+fn deserialize_markets<'de, D>(deserializer: D) -> Result<Vec<EventMarket>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Deserialize;
+    match Option::<Vec<EventMarket>>::deserialize(deserializer) {
+        Ok(Some(markets)) => Ok(markets),
+        Ok(None) => Ok(vec![]),
+        Err(e) => {
+            eprintln!("Warning: Failed to deserialize markets: {}", e);
+            Ok(vec![])
+        }
+    }
+}
+
+fn deserialize_outcomes<'de, D>(deserializer: D) -> Result<Vec<EventOutcome>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Deserialize;
+    match Option::<Vec<EventOutcome>>::deserialize(deserializer) {
+        Ok(Some(outcomes)) => Ok(outcomes),
+        Ok(None) => Ok(vec![]),
+        Err(e) => {
+            eprintln!("Warning: Failed to deserialize outcomes: {}", e);
+            Ok(vec![])
+        }
+    }
+}
+
+fn deserialize_prices<'de, D>(deserializer: D) -> Result<Vec<EventPrice>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Deserialize;
+    match Option::<Vec<EventPrice>>::deserialize(deserializer) {
+        Ok(Some(prices)) => Ok(prices),
+        Ok(None) => Ok(vec![]),
+        Err(e) => {
+            eprintln!("Warning: Failed to deserialize prices: {}", e);
+            Ok(vec![])
+        }
+    }
 }
 
 pub struct ApiClient {
@@ -261,13 +318,38 @@ impl ApiClient {
         }
 
         let response_text = self.client.get(url.clone()).send().await?.text().await?;
-        eprintln!("DEBUG: get_event_list response (first 500 chars): {}", &response_text.chars().take(500).collect::<String>());
-        match serde_json::from_str::<EventListResponse>(&response_text) {
-            Ok(parsed) => Ok(parsed),
+        
+        // First deserialize as generic Value to handle null gracefully
+        match serde_json::from_str::<serde_json::Value>(&response_text) {
+            Ok(json_value) => {
+                // Now manually handle the data.events null case
+                let mut response = EventListResponse::default();
+                
+                if let Some(data_obj) = json_value.get("data").and_then(|v| v.as_object()) {
+                    let mut data = EventListData::default();
+                    
+                    if let Some(events_val) = data_obj.get("events") {
+                        if !events_val.is_null() {
+                            match serde_json::from_value::<Vec<EventListEvent>>(events_val.clone()) {
+                                Ok(events) => {
+                                    data.events = events;
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to deserialize events field: {}", e);
+                                    data.events = vec![];
+                                }
+                            }
+                        } else {
+                            data.events = vec![];
+                        }
+                    }
+                    response.data = data;
+                }
+                
+                Ok(response)
+            }
             Err(e) => {
                 eprintln!("JSON parse error: {} at line {} col {}", e, e.line(), e.column());
-                eprintln!("DEBUG: Full response: {}", response_text);
-                eprintln!("DEBUG: Request URL was: {}", url);
                 Err(Box::new(e))
             }
         }

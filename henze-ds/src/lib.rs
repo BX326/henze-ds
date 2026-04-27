@@ -212,6 +212,38 @@ fn default_event_window() -> (DateTime<Utc>, DateTime<Utc>) {
     (now - chrono::Duration::days(2), now + chrono::Duration::days(7))
 }
 
+async fn fetch_non_started_events_chunked(
+    client: &ds_client::client::ApiClient,
+    sport_tag_id: Option<String>,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<Vec<ds_client::client::EventListEvent>, Box<dyn std::error::Error>> {
+    if from >= to {
+        return Ok(vec![]);
+    }
+
+    let mut cursor = from;
+    let mut seen = HashSet::new();
+    let mut merged = Vec::new();
+
+    while cursor < to {
+        let chunk_end = std::cmp::min(cursor + chrono::Duration::hours(24), to);
+        let query = ds_client::client::EventListQuery::new(cursor, chunk_end, false)
+            .with_sport(sport_tag_id.clone());
+        let chunk = client.get_event_list(&query).await?.data.events;
+
+        for event in chunk {
+            if seen.insert(event.id.clone()) {
+                merged.push(event);
+            }
+        }
+
+        cursor = chunk_end;
+    }
+
+    Ok(merged)
+}
+
 async fn fetch_events_for_filter(
     client: &ds_client::client::ApiClient,
     filter: &HenzeFilter,
@@ -230,10 +262,17 @@ async fn fetch_events_for_filter(
         return Ok(response.data.events);
     }
 
-    // Fetch non-started events for default and warmup cache paths.
-    let non_started_query = ds_client::client::EventListQuery::new(from, to, false)
-        .with_sport(filter.sport_tag_id.clone());
-    let non_started = client.get_event_list(&non_started_query).await?.data.events;
+    // started=false should never look into the past; some API windows with past ranges can return null/errors.
+    let non_started_from = std::cmp::max(from, Utc::now());
+
+    // Fetch non-started events in 24h chunks because wide started=false ranges can return null/errors.
+    let non_started = fetch_non_started_events_chunked(
+        client,
+        filter.sport_tag_id.clone(),
+        non_started_from,
+        to,
+    )
+    .await?;
 
     if !filter.include_started {
         return Ok(non_started);
