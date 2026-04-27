@@ -10,6 +10,7 @@ primary_region = 'ams'
 
 [env]
   PORT = '8080'
+  CACHE_DB_PATH = '/data/events_cache.sqlite'
   ROCKET_ADDRESS = '0.0.0.0'
   ROCKET_PORT = '8080'
   ROCKET_TEMPLATE_DIR = '/app/templates'
@@ -21,6 +22,10 @@ primary_region = 'ams'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
+
+[[mounts]]
+  source = 'henze_data'
+  destination = '/data'
 
 [[vm]]
   memory = '1gb'

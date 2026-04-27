@@ -1,9 +1,164 @@
 //! Business logic utilities for data processing.
 
+use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
+use chrono_tz::Europe::Copenhagen;
 use henze_ds::{available_sports, HenzeFilter, HenzeInfo};
 use std::collections::HashMap;
+use std::env;
+use std::error::Error;
+use std::sync::{Mutex, OnceLock};
 
+use crate::cache::ResponseCache;
 use crate::models::{BetsContext, FilterOption, GroupedEvent, MarketInfo, SportOption};
+
+static RESPONSE_CACHE: OnceLock<Option<ResponseCache>> = OnceLock::new();
+static LAST_PREFETCH_TIME: Mutex<Option<DateTime<Utc>>> = Mutex::new(None);
+
+fn response_cache() -> Option<&'static ResponseCache> {
+    RESPONSE_CACHE
+        .get_or_init(|| {
+            let path = env::var("CACHE_DB_PATH")
+                .unwrap_or_else(|_| "/tmp/henze/events_cache.sqlite".to_string());
+            match ResponseCache::new(&path) {
+                Ok(cache) => Some(cache),
+                Err(err) => {
+                    eprintln!("Failed to initialize cache at {}: {}", path, err);
+                    None
+                }
+            }
+        })
+        .as_ref()
+}
+
+fn cache_key_for_filter(filter: &HenzeFilter) -> String {
+    let from = filter
+        .start_time_from
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_else(|| "none".to_string());
+    let to = filter
+        .start_time_to
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_else(|| "none".to_string());
+    let sport = filter
+        .sport_tag_id
+        .as_deref()
+        .unwrap_or("all");
+
+    format!(
+        "bets:v1:sport={}:target={:.3}:tol={:.3}:from={}:to={}:live={}:include_started={}",
+        sport,
+        filter.target,
+        filter.tolerance,
+        from,
+        to,
+        filter.live_only,
+        filter.include_started
+    )
+}
+
+pub async fn prefetch_standard_windows(force_refresh: bool) -> Result<(), Box<dyn Error>> {
+    for day_offset in [0_i64, 1, 2] {
+        let Some((from, to)) = copenhagen_day_bounds(Utc::now(), day_offset) else {
+            continue;
+        };
+
+        // Prefetch only non-started events for today/tomorrow/day-after windows.
+        let filter = HenzeFilter::default()
+            .with_time_range(Some(from), Some(to))
+            .with_include_started(false);
+
+        let _ = fetch_bets_with_cache_control(filter, force_refresh).await?;
+    }
+
+    Ok(())
+}
+
+pub fn record_prefetch_time() {
+    if let Ok(mut lock) = LAST_PREFETCH_TIME.lock() {
+        *lock = Some(Utc::now());
+    }
+}
+
+pub fn get_last_prefetch_time() -> Option<DateTime<Utc>> {
+    LAST_PREFETCH_TIME.lock().ok().and_then(|lock| *lock)
+}
+
+fn copenhagen_day_bounds(now_utc: DateTime<Utc>, days_offset: i64) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+    let local_now = now_utc.with_timezone(&Copenhagen);
+    let date = local_now.date_naive() + Duration::days(days_offset);
+    let local_start = Copenhagen
+        .with_ymd_and_hms(date.year(), date.month(), date.day(), 0, 0, 0)
+        .single()?;
+    let local_end = local_start + Duration::days(1);
+    Some((local_start.with_timezone(&Utc), local_end.with_timezone(&Utc)))
+}
+
+fn time_range_matches(range: (DateTime<Utc>, DateTime<Utc>), from: DateTime<Utc>, to: DateTime<Utc>) -> bool {
+    range.0.timestamp() == from.timestamp() && range.1.timestamp() == to.timestamp()
+}
+
+fn ttl_seconds_for_filter(filter: &HenzeFilter) -> i64 {
+    let now = Utc::now();
+
+    match (filter.start_time_from, filter.start_time_to) {
+        (Some(from), Some(to)) => {
+            let today = copenhagen_day_bounds(now, 0);
+            let tomorrow = copenhagen_day_bounds(now, 1);
+            let day_after = copenhagen_day_bounds(now, 2);
+
+            if today.map(|r| time_range_matches(r, from, to)).unwrap_or(false) {
+                return 6 * 3600;
+            }
+            if tomorrow.map(|r| time_range_matches(r, from, to)).unwrap_or(false)
+                || day_after.map(|r| time_range_matches(r, from, to)).unwrap_or(false)
+            {
+                return 24 * 3600;
+            }
+
+            3600
+        }
+        _ => 6 * 3600,
+    }
+}
+
+pub async fn fetch_bets_with_cache_control(
+    filter: HenzeFilter,
+    force_refresh: bool,
+) -> Result<Vec<HenzeInfo>, Box<dyn Error>> {
+    if filter.live_only {
+        // Live requests should always be fetched fresh.
+        return henze_ds::retrieve_henze_data_with_filter(filter).await;
+    }
+
+    let ttl = ttl_seconds_for_filter(&filter);
+    let key = cache_key_for_filter(&filter);
+    if !force_refresh {
+        if let Some(cache) = response_cache() {
+            if let Some(cached) = cache.get::<Vec<HenzeInfo>>(&key)? {
+                return Ok(cached);
+            }
+        }
+    }
+
+    let fresh = henze_ds::retrieve_henze_data_with_filter(filter).await?;
+
+    if let Some(cache) = response_cache() {
+        if let Err(err) = cache.set(&key, &fresh, ttl) {
+            eprintln!("Failed to write cache key {}: {}", key, err);
+        }
+        if let Err(err) = cache.purge_expired() {
+            eprintln!("Failed to purge expired cache rows: {}", err);
+        }
+    }
+
+    Ok(fresh)
+}
+
+pub async fn fetch_bets_with_cache(
+    filter: HenzeFilter,
+) -> Result<Vec<HenzeInfo>, Box<dyn Error>> {
+    fetch_bets_with_cache_control(filter, false).await
+}
 
 /// Group bets by event, sorting live events first.
 pub fn group_bets_by_event(bets: &[HenzeInfo]) -> Vec<GroupedEvent> {
@@ -110,7 +265,7 @@ pub async fn fetch_bets_context(
     let max_odds = filter.max_odds();
     let sports = build_sports_list(&selected_sport);
 
-    match henze_ds::retrieve_henze_data_with_filter(filter).await {
+    match fetch_bets_with_cache(filter).await {
         Ok(bets) => {
             let grouped_events = group_bets_by_event(&bets);
             let categories = build_category_options(&grouped_events);

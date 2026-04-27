@@ -5,8 +5,11 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4"
+chrono-tz = "0.10"
 henze_ds = { path = "../henze-ds" }
 rocket = { version = "0.5.1", features = ["json"] }
 rocket_dyn_templates = { version = "0.1.0", features = ["tera"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 tera = "1.19.1"
