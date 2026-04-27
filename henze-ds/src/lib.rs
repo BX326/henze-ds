@@ -1,5 +1,6 @@
 use chrono::{DateTime, FixedOffset, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 pub mod ds_client;
 
@@ -15,7 +16,7 @@ pub const DEFAULT_TOLERANCE: f64 = 0.04;
 /// UTC+2 offset in seconds
 const UTC_PLUS_2: i32 = 2 * 3600;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HenzeInfo {
     pub event_id: String,
     pub event_name: String,
@@ -78,6 +79,7 @@ pub enum BetResult {
 }
 
 /// Parameters for filtering Henze bets
+#[derive(Clone)]
 pub struct HenzeFilter {
     /// Target odds (default: 1.1)
     pub target: f64,
@@ -91,6 +93,8 @@ pub struct HenzeFilter {
     pub start_time_to: Option<DateTime<Utc>>,
     /// Only include live events
     pub live_only: bool,
+    /// Include started/live events when not in live-only mode
+    pub include_started: bool,
 }
 
 impl Default for HenzeFilter {
@@ -102,6 +106,7 @@ impl Default for HenzeFilter {
             start_time_from: None,
             start_time_to: None,
             live_only: false,
+            include_started: true,
         }
     }
 }
@@ -115,6 +120,7 @@ impl HenzeFilter {
             start_time_from: None,
             start_time_to: None,
             live_only: false,
+            include_started: true,
         }
     }
 
@@ -126,6 +132,7 @@ impl HenzeFilter {
             start_time_from: None,
             start_time_to: None,
             live_only: false,
+            include_started: true,
         }
     }
     
@@ -139,6 +146,12 @@ impl HenzeFilter {
     /// Builder method to set live-only filter
     pub fn with_live_only(mut self, live_only: bool) -> Self {
         self.live_only = live_only;
+        self
+    }
+
+    /// Builder method to include/exclude started events
+    pub fn with_include_started(mut self, include_started: bool) -> Self {
+        self.include_started = include_started;
         self
     }
 
@@ -193,24 +206,69 @@ fn get_sport_name(class_name: &str) -> String {
     class_name.to_string()
 }
 
+fn default_event_window() -> (DateTime<Utc>, DateTime<Utc>) {
+    let now = Utc::now();
+    // Keep a wide enough window to cover current and near-future events in one pass.
+    (now - chrono::Duration::days(2), now + chrono::Duration::days(7))
+}
+
+async fn fetch_events_for_filter(
+    client: &ds_client::client::ApiClient,
+    filter: &HenzeFilter,
+) -> Result<Vec<ds_client::client::EventListEvent>, Box<dyn std::error::Error>> {
+    let (from, to) = match (filter.start_time_from, filter.start_time_to) {
+        (Some(from), Some(to)) => (from, to),
+        (Some(from), None) => (from, Utc::now() + chrono::Duration::days(7)),
+        (None, Some(to)) => (Utc::now() - chrono::Duration::days(2), to),
+        (None, None) => default_event_window(),
+    };
+
+    if filter.live_only {
+        let query = ds_client::client::EventListQuery::new(from, to, true)
+            .with_sport(filter.sport_tag_id.clone());
+        let response = client.get_event_list(&query).await?;
+        return Ok(response.data.events);
+    }
+
+    // Fetch non-started events for default and warmup cache paths.
+    let non_started_query = ds_client::client::EventListQuery::new(from, to, false)
+        .with_sport(filter.sport_tag_id.clone());
+    let non_started = client.get_event_list(&non_started_query).await?.data.events;
+
+    if !filter.include_started {
+        return Ok(non_started);
+    }
+
+    // Default behavior includes started events too, with de-duplication by event id.
+    let started_query = ds_client::client::EventListQuery::new(from, to, true)
+        .with_sport(filter.sport_tag_id.clone());
+    let started = client.get_event_list(&started_query).await?.data.events;
+
+    let mut seen = HashSet::new();
+    let mut merged = Vec::with_capacity(non_started.len() + started.len());
+    for event in non_started.into_iter().chain(started.into_iter()) {
+        if seen.insert(event.id.clone()) {
+            merged.push(event);
+        }
+    }
+
+    Ok(merged)
+}
+
 pub async fn retrieve_henze_data_with_filter(
     filter: HenzeFilter,
 ) -> Result<Vec<HenzeInfo>, Box<dyn std::error::Error>> {
     let client = ds_client::client::ApiClient::new();
-    let data = client.get_data_with_sport(filter.sport_tag_id.as_deref()).await?;
+    let events = fetch_events_for_filter(&client, &filter).await?;
 
     let min_odds = filter.min_odds();
     let max_odds = filter.max_odds();
 
-    let collected_info: Vec<HenzeInfo> = data
-        .data
-        .time_band_events
+    let collected_info: Vec<HenzeInfo> = events
         .iter()
-        .flat_map(|time_band_event| {
-            time_band_event.events.iter()
-                // Apply time and live filters at event level
-                .filter(|event| filter.matches_event(&event.start_time, event.live_now))
-                .flat_map(move |event| {
+        // Apply time and live filters at event level
+        .filter(|event| filter.matches_event(&event.start_time, event.live_now))
+        .flat_map(move |event| {
                 let event_id = &event.id;
                 let event_name = &event.name;
                 let event_time_utc = event.start_time;
@@ -218,15 +276,15 @@ pub async fn retrieve_henze_data_with_filter(
                 let event_url = format!("https://danskespil.dk/oddset/in-play/event/{}", event_id);
                 let is_live = event.live_now;
                 let sport_id = event.sport_id.clone();
-                let sport_name = get_sport_name(&event.class.name);
+                let sport_name = get_sport_name(&event.class_field.name);
                 
                 // Category = league/competition (e.g., "Premier League")
                 let category_id = event.category.id.clone();
                 let category_name = event.category.name.clone();
                 
                 // Class = country/region (e.g., "England")
-                let class_id = event.class.id.clone();
-                let class_name = event.class.name.clone();
+                let class_id = event.class_field.id.clone();
+                let class_name = event.class_field.name.clone();
                 
                 // Get match minute from commentary clock if available
                 let match_minute = event.commentary.as_ref().and_then(|c| {
@@ -278,7 +336,6 @@ pub async fn retrieve_henze_data_with_filter(
                     })
                 })
             })
-        })
         .collect();
 
     Ok(collected_info)
@@ -288,43 +345,56 @@ pub async fn retrieve_henze_data_with_filter(
 /// Returns all outcomes regardless of odds (for selecting which bet to place).
 pub async fn get_event_bet_options(event_id: &str) -> Result<Vec<BetOption>, Box<dyn std::error::Error + Send + Sync>> {
     let client = ds_client::client::ApiClient::new();
-    // Fetch all events (no sport filter to ensure we find the event)
-    let data = client.get_data_with_sport(None).await
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
+
+    let (from, to) = default_event_window();
+    let non_started_query = ds_client::client::EventListQuery::new(from, to, false);
+    let started_query = ds_client::client::EventListQuery::new(from, to, true);
+
+    let non_started = client
+        .get_event_list(&non_started_query)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?
+        .data
+        .events;
+    let started = client
+        .get_event_list(&started_query)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?
+        .data
+        .events;
 
     let mut options = Vec::new();
 
-    for time_band_event in &data.data.time_band_events {
-        for event in &time_band_event.events {
-            if event.id != event_id {
-                continue;
-            }
+    let mut seen = HashSet::new();
+    for event in non_started.into_iter().chain(started.into_iter()) {
+        if event.id != event_id || !seen.insert(event.id.clone()) {
+            continue;
+        }
 
-            let event_time = format_time_utc_plus_2(&event.start_time);
-            let event_url = format!("https://danskespil.dk/oddset/in-play/event/{}", event.id);
+        let event_time = format_time_utc_plus_2(&event.start_time);
+        let event_url = format!("https://danskespil.dk/oddset/in-play/event/{}", event.id);
 
-            for market in &event.markets {
-                for outcome in &market.outcomes {
-                    // Get the best price for this outcome
-                    if let Some(price) = outcome.prices.first() {
-                        if let Some(odds) = price.decimal {
-                            options.push(BetOption {
-                                event_id: event.id.clone(),
-                                event_name: event.name.clone(),
-                                event_time: event_time.clone(),
-                                event_url: event_url.clone(),
-                                is_live: event.live_now,
-                                sport_name: event.class.name.clone(),
-                                category_name: event.category.name.clone(),
-                                market_id: market.id.clone(),
-                                market_name: market.name.to_string(),
-                                outcome_id: outcome.id.clone(),
-                                outcome_name: outcome.name.clone(),
-                                odds,
-                                resulted: outcome.resulted,
-                                status: outcome.status.to_string(),
-                            });
-                        }
+        for market in &event.markets {
+            for outcome in &market.outcomes {
+                // Get the best price for this outcome
+                if let Some(price) = outcome.prices.first() {
+                    if let Some(odds) = price.decimal {
+                        options.push(BetOption {
+                            event_id: event.id.clone(),
+                            event_name: event.name.clone(),
+                            event_time: event_time.clone(),
+                            event_url: event_url.clone(),
+                            is_live: event.live_now,
+                            sport_name: event.class_field.name.clone(),
+                            category_name: event.category.name.clone(),
+                            market_id: market.id.clone(),
+                            market_name: market.name.to_string(),
+                            outcome_id: outcome.id.clone(),
+                            outcome_name: outcome.name.clone(),
+                            odds,
+                            resulted: outcome.resulted,
+                            status: outcome.status.to_string(),
+                        });
                     }
                 }
             }

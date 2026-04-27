@@ -1,0 +1,25 @@
+name: Cache Warmup
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  warm-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call internal prefetch endpoint
+        env:
+          PREFETCH_URL: ${{ secrets.PREFETCH_URL }}
+          PREFETCH_TOKEN: ${{ secrets.PREFETCH_TOKEN }}
+        run: |
+          if [ -z "$PREFETCH_URL" ] || [ -z "$PREFETCH_TOKEN" ]; then
+            echo "Missing PREFETCH_URL or PREFETCH_TOKEN secret"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            -X POST \
+            -H "x-prefetch-token: $PREFETCH_TOKEN" \
+            "$PREFETCH_URL"

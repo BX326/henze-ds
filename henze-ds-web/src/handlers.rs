@@ -4,13 +4,16 @@ use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone, Utc};
 use henze_ds::{HenzeFilter, HenzeInfo, DEFAULT_SPORT, DEFAULT_TARGET_ODDS, DEFAULT_TOLERANCE};
 use rocket::form::Form;
 use rocket::http::Status;
+use rocket::request::{FromRequest, Outcome, Request};
 use rocket::response::Redirect;
 use rocket::serde::json::Json;
 use rocket::{catch, get, post, uri};
 use rocket_dyn_templates::Template;
+use serde::Serialize;
+use std::env;
 
 use crate::models::FilterParams;
-use crate::utils::fetch_bets_context;
+use crate::utils::{fetch_bets_context, fetch_bets_with_cache, prefetch_standard_windows, record_prefetch_time, get_last_prefetch_time};
 
 /// Parse time preset into start/end DateTime range (for API use)
 fn parse_time_preset(preset: &str) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
@@ -122,10 +125,62 @@ pub async fn api_bets(
     .with_time_range(start_from, start_to)
     .with_live_only(live);
 
-    match henze_ds::retrieve_henze_data_with_filter(filter).await {
+    match fetch_bets_with_cache(filter).await {
         Ok(data) => Ok(Json(data)),
         Err(_) => Err(Status::InternalServerError),
     }
+}
+
+pub struct PrefetchAuth;
+
+#[derive(Serialize)]
+pub struct HealthStatus {
+    pub status: String,
+    pub last_prefetch: Option<String>,
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for PrefetchAuth {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let provided = request.headers().get_one("x-prefetch-token");
+        let expected = env::var("PREFETCH_TOKEN").ok();
+
+        match (provided, expected.as_deref()) {
+            (Some(provided_token), Some(expected_token))
+                if !expected_token.is_empty() && provided_token == expected_token =>
+            {
+                Outcome::Success(PrefetchAuth)
+            }
+            _ => Outcome::Error((Status::Unauthorized, ())),
+        }
+    }
+}
+
+#[post("/internal/prefetch")]
+pub async fn internal_prefetch(_auth: PrefetchAuth) -> Status {
+    match prefetch_standard_windows(true).await {
+        Ok(()) => {
+            record_prefetch_time();
+            Status::NoContent
+        }
+        Err(err) => {
+            eprintln!("Prefetch failed: {}", err);
+            Status::InternalServerError
+        }
+    }
+}
+
+#[get("/internal/status")]
+pub fn internal_status() -> Json<HealthStatus> {
+    let last_prefetch = get_last_prefetch_time()
+        .map(|dt| dt.to_rfc3339());
+    
+    Json(HealthStatus {
+        status: "ok".to_string(),
+        last_prefetch,
+    })
 }
 
 /// 404 handler - redirects to index.

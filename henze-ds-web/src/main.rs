@@ -3,13 +3,14 @@
 mod handlers;
 mod models;
 mod utils;
+mod cache;
 
 use rocket::fs::FileServer;
 use rocket::{catchers, launch, routes};
 use rocket_dyn_templates::Template;
 use std::env;
 
-use handlers::{api_bets, filter_bets, index, not_found};
+use handlers::{api_bets, filter_bets, index, internal_prefetch, internal_status, not_found};
 
 #[launch]
 fn rocket() -> _ {
@@ -23,7 +24,7 @@ fn rocket() -> _ {
         .unwrap_or_else(|_| format!("{}/static", env!("CARGO_MANIFEST_DIR")));
 
     rocket::build()
-        .mount("/", routes![index, filter_bets, api_bets])
+        .mount("/", routes![index, filter_bets, api_bets, internal_prefetch, internal_status])
         .mount("/static", FileServer::from(static_path))
         .attach(Template::fairing())
         .register("/", catchers![not_found])
