@@ -9,7 +9,7 @@ use std::error::Error;
 use std::sync::{Mutex, OnceLock};
 
 use crate::cache::ResponseCache;
-use crate::models::{BetsContext, FilterOption, GroupedEvent, MarketInfo, SportOption};
+use crate::models::{EventsPage, FilterOption, GroupedEvent, MarketInfo, SportOption};
 
 static RESPONSE_CACHE: OnceLock<Option<ResponseCache>> = OnceLock::new();
 static LAST_PREFETCH_TIME: Mutex<Option<DateTime<Utc>>> = Mutex::new(None);
@@ -222,96 +222,68 @@ pub fn build_sports_list(selected: &str) -> Vec<SportOption> {
 }
 
 /// Build filter options (categories or classes) from grouped events, sorted alphabetically.
-pub fn build_filter_options(
+fn build_filter_options(
     events: &[GroupedEvent],
     get_id: impl Fn(&GroupedEvent) -> &str,
     get_name: impl Fn(&GroupedEvent) -> &str,
 ) -> Vec<FilterOption> {
     let mut counts: HashMap<(String, String), usize> = HashMap::new();
-    
     for event in events {
         let id = get_id(event).to_string();
         let name = get_name(event).to_string();
         *counts.entry((id, name)).or_insert(0) += 1;
     }
-    
     let mut options: Vec<FilterOption> = counts
         .into_iter()
         .map(|((id, name), count)| FilterOption { id, name, count })
         .collect();
-    
-    // Sort alphabetically by name (ascending)
     options.sort_by(|a, b| a.name.cmp(&b.name));
     options
 }
 
-/// Build category (league/competition) filter options from events.
-pub fn build_category_options(events: &[GroupedEvent]) -> Vec<FilterOption> {
-    build_filter_options(events, |e| &e.category_id, |e| &e.category_name)
-}
-
-/// Build class (country/region) filter options from events.
-pub fn build_class_options(events: &[GroupedEvent]) -> Vec<FilterOption> {
+fn build_class_options(events: &[GroupedEvent]) -> Vec<FilterOption> {
     build_filter_options(events, |e| &e.class_id, |e| &e.class_name)
 }
 
-/// Fetch bets and build the complete template context.
-/// Note: Advanced filtering (time, league, live status) is handled client-side.
-pub async fn fetch_bets_context(
+/// Fetch a page of grouped events with optional class filtering.
+/// Classes (for the filter dropdown) are always computed from the full unfiltered set
+/// so the user can always switch between classes.
+pub async fn fetch_events_page(
     filter: HenzeFilter,
-    selected_sport: String,
-) -> BetsContext {
-    let target = filter.target;
-    let tolerance = filter.tolerance;
-    let min_odds = filter.min_odds();
-    let max_odds = filter.max_odds();
-    let sports = build_sports_list(&selected_sport);
+    class_id: Option<String>,
+    page: usize,
+    page_size: usize,
+) -> Result<EventsPage, Box<dyn Error>> {
+    let all_bets = fetch_bets_with_cache(filter).await?;
+    let all_events = group_bets_by_event(&all_bets);
 
-    match fetch_bets_with_cache(filter).await {
-        Ok(bets) => {
-            let grouped_events = group_bets_by_event(&bets);
-            let categories = build_category_options(&grouped_events);
-            let classes = build_class_options(&grouped_events);
-            
-            BetsContext {
-                count: bets.len(),
-                event_count: grouped_events.len(),
-                grouped_events,
-                bets,
-                target,
-                tolerance,
-                min_odds,
-                max_odds,
-                error: None,
-                sports,
-                selected_sport,
-                categories,
-                classes,
-                // Default values for client-side filtering
-                time_preset: "all".to_string(),
-                from_time: String::new(),
-                to_time: String::new(),
-                live_only: false,
-            }
-        }
-        Err(e) => BetsContext {
-            bets: vec![],
-            grouped_events: vec![],
-            target,
-            tolerance,
-            min_odds,
-            max_odds,
-            count: 0,
-            event_count: 0,
-            error: Some(format!("Failed to fetch data: {}", e)),
-            sports,
-            selected_sport,
-            categories: vec![],
-            classes: vec![],
-            time_preset: "all".to_string(),
-            from_time: String::new(),
-            to_time: String::new(),
-            live_only: false,
-        },
-    }
+    // Classes are computed from the full event set (pre-class filter) so the dropdown
+    // always shows all available classes regardless of the current selection.
+    let classes = if page == 0 {
+        build_class_options(&all_events)
+    } else {
+        vec![]
+    };
+
+    // Apply class filter
+    let filtered: Vec<GroupedEvent> = match class_id.as_deref() {
+        Some(cid) if !cid.is_empty() => all_events.into_iter().filter(|e| e.class_id == cid).collect(),
+        _ => all_events,
+    };
+
+    let total_events = filtered.len();
+    let total_markets: usize = filtered.iter().map(|e| e.markets.len()).sum();
+    let start = page * page_size;
+    let has_more = start + page_size < total_events;
+    let events: Vec<GroupedEvent> = filtered.into_iter().skip(start).take(page_size).collect();
+
+    Ok(EventsPage {
+        events,
+        total_events,
+        total_markets,
+        page,
+        page_size,
+        has_more,
+        classes,
+    })
 }

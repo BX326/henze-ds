@@ -793,6 +793,11 @@ a:hover {
     display: none !important;
 }
 
+/* Lazy-load hidden state (progressive event reveal) */
+.accordion-item.lazy-hidden {
+    display: none !important;
+}
+
 /* Advanced filters toggle button */
 #advanced-filters-toggle {
     border-color: #444;
