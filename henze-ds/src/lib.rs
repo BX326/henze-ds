@@ -15,6 +15,7 @@ pub const DEFAULT_TOLERANCE: f64 = 0.04;
 
 /// UTC+2 offset in seconds
 const UTC_PLUS_2: i32 = 2 * 3600;
+const EVENT_LIST_WINDOW_HOURS: i64 = 6;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HenzeInfo {
@@ -217,11 +218,12 @@ fn default_event_window() -> (DateTime<Utc>, DateTime<Utc>) {
     (now - chrono::Duration::days(2), now + chrono::Duration::days(7))
 }
 
-async fn fetch_non_started_events_chunked(
+async fn fetch_events_chunked(
     client: &ds_client::client::ApiClient,
     sport_tag_id: Option<String>,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
+    started: bool,
 ) -> Result<Vec<ds_client::client::EventListEvent>, Box<dyn std::error::Error>> {
     if from >= to {
         return Ok(vec![]);
@@ -232,8 +234,8 @@ async fn fetch_non_started_events_chunked(
     let mut merged = Vec::new();
 
     while cursor < to {
-        let chunk_end = std::cmp::min(cursor + chrono::Duration::hours(24), to);
-        let query = ds_client::client::EventListQuery::new(cursor, chunk_end, false)
+        let chunk_end = std::cmp::min(cursor + chrono::Duration::hours(EVENT_LIST_WINDOW_HOURS), to);
+        let query = ds_client::client::EventListQuery::new(cursor, chunk_end, started)
             .with_sport(sport_tag_id.clone());
         let chunk = client.get_event_list(&query).await?.data.events;
 
@@ -261,21 +263,19 @@ async fn fetch_events_for_filter(
     };
 
     if filter.live_only {
-        let query = ds_client::client::EventListQuery::new(from, to, true)
-            .with_sport(filter.sport_tag_id.clone());
-        let response = client.get_event_list(&query).await?;
-        return Ok(response.data.events);
+        return fetch_events_chunked(client, filter.sport_tag_id.clone(), from, to, true).await;
     }
 
     // started=false should never look into the past; some API windows with past ranges can return null/errors.
     let non_started_from = std::cmp::max(from, Utc::now());
 
-    // Fetch non-started events in 24h chunks because wide started=false ranges can return null/errors.
-    let non_started = fetch_non_started_events_chunked(
+    // Fetch event lists in controlled windows to keep upstream responses bounded.
+    let non_started = fetch_events_chunked(
         client,
         filter.sport_tag_id.clone(),
         non_started_from,
         to,
+        false,
     )
     .await?;
 
@@ -284,9 +284,7 @@ async fn fetch_events_for_filter(
     }
 
     // Default behavior includes started events too, with de-duplication by event id.
-    let started_query = ds_client::client::EventListQuery::new(from, to, true)
-        .with_sport(filter.sport_tag_id.clone());
-    let started = client.get_event_list(&started_query).await?.data.events;
+    let started = fetch_events_chunked(client, filter.sport_tag_id.clone(), from, to, true).await?;
 
     let mut seen = HashSet::new();
     let mut merged = Vec::with_capacity(non_started.len() + started.len());
@@ -397,21 +395,13 @@ pub async fn get_event_bet_options(event_id: &str) -> Result<Vec<BetOption>, Box
     let client = ds_client::client::ApiClient::new();
 
     let (from, to) = default_event_window();
-    let non_started_query = ds_client::client::EventListQuery::new(from, to, false);
-    let started_query = ds_client::client::EventListQuery::new(from, to, true);
-
-    let non_started = client
-        .get_event_list(&non_started_query)
+    let non_started = fetch_events_chunked(&client, None, std::cmp::max(from, Utc::now()), to, false)
         .await
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?
-        .data
-        .events;
-    let started = client
-        .get_event_list(&started_query)
+        ;
+    let started = fetch_events_chunked(&client, None, from, to, true)
         .await
-        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?
-        .data
-        .events;
+        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
 
     let mut options = Vec::new();
 
