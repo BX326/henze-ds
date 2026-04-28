@@ -234,17 +234,33 @@
                         </h2>
                         <div id="event-{{ event.event_id }}" class="accordion-collapse collapse" data-bs-parent="#eventsAccordion">
                             <div class="accordion-body p-0">
-                                <table class="table table-sm table-striped mb-0">
+                                <div class="market-table-controls d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary market-group-toggle" aria-pressed="false">
+                                        <i class="bi bi-collection me-1"></i>Group by type
+                                    </button>
+                                </div>
+                                <table class="table table-sm table-striped mb-0 market-table">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>Market</th>
-                                            <th>Outcome</th>
-                                            <th class="text-end">Odds</th>
+                                            <th class="sort-header" data-sort-col="market" role="button" tabindex="0" aria-sort="none">
+                                                Market <i class="bi bi-arrow-down-up sort-icon ms-1"></i>
+                                            </th>
+                                            <th class="sort-header" data-sort-col="outcome" role="button" tabindex="0" aria-sort="none">
+                                                Outcome <i class="bi bi-arrow-down-up sort-icon ms-1"></i>
+                                            </th>
+                                            <th class="sort-header text-end" data-sort-col="odds" role="button" tabindex="0" aria-sort="none">
+                                                Odds <i class="bi bi-arrow-down-up sort-icon ms-1"></i>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for market in event.markets %}
-                                        <tr data-event-id="{{ event.event_id }}" data-market-name="{{ market.market_name | escape }}" data-outcome="{{ market.outcome | escape }}" data-decimal="{{ market.decimal }}">
+                                        <tr data-event-id="{{ event.event_id }}"
+                                            data-market-name="{{ market.market_name | escape }}"
+                                            data-market-type="{{ market.market_type | escape }}"
+                                            data-market-sub-type="{{ market.market_sub_type | escape }}"
+                                            data-outcome="{{ market.outcome | escape }}"
+                                            data-decimal="{{ market.decimal }}">
                                             <td>{{ market.market_name }}</td>
                                             <td>{{ market.outcome }}</td>
                                             <td class="text-end fw-bold text-success">{{ market.decimal | round(precision=2) }}</td>

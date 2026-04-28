@@ -269,10 +269,7 @@
           "type": "array"
         },
         "meeting": {
-          "anyOf": [
-            { "$ref": "#/definitions/Meeting" },
-            { "type": "null" }
-          ]
+          "type": "null"
         },
         "name": {
           "type": "string"
@@ -461,36 +458,6 @@
       "title": "ID",
       "type": "string"
     },
-    "Meeting": {
-      "properties": {
-        "id": {
-          "format": "integer",
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "code": {
-          "anyOf": [
-            { "type": "string" },
-            { "type": "null" }
-          ]
-        },
-        "number": {
-          "anyOf": [
-            { "type": "integer" },
-            { "type": "null" }
-          ]
-        },
-        "date": {
-          "format": "date-time",
-          "type": "string"
-        }
-      },
-      "required": ["id", "name", "date"],
-      "title": "Meeting",
-      "type": "object"
-    },
     "Market": {
       "properties": {
         "active": {
@@ -529,10 +496,7 @@
           "type": "integer"
         },
         "displaySortId": {
-          "anyOf": [
-            { "type": "string" },
-            { "type": "null" }
-          ]
+          "type": "null"
         },
         "displayed": {
           "type": "boolean"
@@ -551,10 +515,7 @@
           "type": "array"
         },
         "groupCode": {
-          "anyOf": [
-            { "$ref": "#/definitions/GroupCode" },
-            { "type": "null" }
-          ]
+          "$ref": "#/definitions/GroupCode"
         },
         "handicapValue": {
           "anyOf": [
@@ -792,10 +753,7 @@
           "type": "array"
         },
         "displayOrder": {
-          "anyOf": [
-            { "type": "integer" },
-            { "type": "null" }
-          ]
+          "type": "integer"
         },
         "displayed": {
           "type": "boolean"
@@ -844,10 +802,7 @@
           ]
         },
         "runnerNumber": {
-          "anyOf": [
-            { "type": "integer" },
-            { "type": "null" }
-          ]
+          "type": "integer"
         },
         "status": {
           "$ref": "#/definitions/Status"
@@ -989,22 +944,13 @@
     "Price": {
       "properties": {
         "decimal": {
-          "anyOf": [
-            { "type": "number" },
-            { "type": "null" }
-          ]
+          "type": "number"
         },
         "denominator": {
-          "anyOf": [
-            { "type": "integer" },
-            { "type": "null" }
-          ]
+          "type": "integer"
         },
         "displayOrder": {
-          "anyOf": [
-            { "type": "integer" },
-            { "type": "null" }
-          ]
+          "type": "integer"
         },
         "handicapHigh": {
           "anyOf": [
@@ -1027,16 +973,10 @@
           ]
         },
         "numerator": {
-          "anyOf": [
-            { "type": "integer" },
-            { "type": "null" }
-          ]
+          "type": "integer"
         },
         "priceType": {
-          "anyOf": [
-            { "$ref": "#/definitions/PriceType" },
-            { "type": "null" }
-          ]
+          "$ref": "#/definitions/PriceType"
         }
       },
       "required": [

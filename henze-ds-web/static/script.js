@@ -458,6 +458,194 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // ========== Market Table Sorting & Grouping ==========
+
+    const TABLE_PREFS_KEY = 'henzeTablePrefs';
+
+    // Normalize market type/subType values — treat "-", "--", or empty as null (no group)
+    function normalizeMarketType(value) {
+        const v = (value || '').trim();
+        return (v === '' || v === '-' || v === '--') ? null : v;
+    }
+
+    // Build a group label from type + subType
+    function groupLabel(type, subType) {
+        const t = normalizeMarketType(type);
+        const s = normalizeMarketType(subType);
+        if (!t) return 'Other';
+        if (!s || s === t) return t;
+        return `${t} – ${s}`;
+    }
+
+    // Load persisted table prefs
+    function loadTablePrefs() {
+        try {
+            const raw = localStorage.getItem(TABLE_PREFS_KEY);
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    // Save table prefs
+    function saveTablePrefs(prefs) {
+        try {
+            localStorage.setItem(TABLE_PREFS_KEY, JSON.stringify(prefs));
+        } catch (e) {}
+    }
+
+    // Per-table sort/group state: { sortCol: 'market'|'outcome'|'odds'|null, sortDir: 'asc'|'desc', grouped: bool }
+    const tablePrefs = loadTablePrefs();
+    // Default state when key is absent
+    function defaultPrefs() { return { sortCol: null, sortDir: 'asc', grouped: true }; }
+
+    // Guard against registering duplicate listeners when initMarketTables is called multiple times
+    const initializedTables = new WeakSet();
+
+    // Apply sort and optional grouping to a single market table
+    function renderTable(table, prefs) {
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        // Collect raw data rows (exclude any group header rows we may have injected)
+        const dataRows = Array.from(tbody.querySelectorAll('tr[data-decimal]'));
+        if (dataRows.length === 0) return;
+
+        // Sort the rows
+        const { sortCol, sortDir, grouped } = prefs;
+
+        const sorted = [...dataRows].sort((a, b) => {
+            if (!sortCol) return 0; // preserve original order when no sort active
+            let va, vb;
+            if (sortCol === 'market') {
+                va = (a.dataset.marketName || '').toLowerCase();
+                vb = (b.dataset.marketName || '').toLowerCase();
+            } else if (sortCol === 'outcome') {
+                va = (a.dataset.outcome || '').toLowerCase();
+                vb = (b.dataset.outcome || '').toLowerCase();
+            } else if (sortCol === 'odds') {
+                va = parseFloat(a.dataset.decimal) || 0;
+                vb = parseFloat(b.dataset.decimal) || 0;
+                return sortDir === 'asc' ? va - vb : vb - va;
+            }
+            const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+            return sortDir === 'asc' ? cmp : -cmp;
+        });
+
+        // Clear tbody (only data rows; avoid touching DOM outside tbody)
+        tbody.innerHTML = '';
+
+        if (!grouped) {
+            sorted.forEach(r => tbody.appendChild(r));
+        } else {
+            // Group by market type/subType
+            const groups = new Map(); // label -> []
+            sorted.forEach(row => {
+                const lbl = groupLabel(row.dataset.marketType, row.dataset.marketSubType);
+                if (!groups.has(lbl)) groups.set(lbl, []);
+                groups.get(lbl).push(row);
+            });
+
+            // Sort group labels (but keep "Other" last)
+            const labels = [...groups.keys()].sort((a, b) => {
+                if (a === 'Other') return 1;
+                if (b === 'Other') return -1;
+                return a.localeCompare(b);
+            });
+
+            labels.forEach(lbl => {
+                // Group header row
+                const hdr = document.createElement('tr');
+                hdr.className = 'market-group-header';
+                hdr.innerHTML = `<td colspan="3"><span class="market-group-label">${lbl}</span></td>`;
+                tbody.appendChild(hdr);
+                groups.get(lbl).forEach(r => tbody.appendChild(r));
+            });
+        }
+
+        // Update header sort indicators
+        table.querySelectorAll('.sort-header').forEach(th => {
+            const col = th.dataset.sortCol;
+            const icon = th.querySelector('.sort-icon');
+            if (col === sortCol) {
+                th.setAttribute('aria-sort', sortDir === 'asc' ? 'ascending' : 'descending');
+                th.classList.add('sort-active');
+                if (icon) {
+                    icon.className = `bi ${sortDir === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'} sort-icon ms-1`;
+                }
+            } else {
+                th.removeAttribute('aria-sort');
+                th.classList.remove('sort-active');
+                if (icon) icon.className = 'bi bi-arrow-down-up sort-icon ms-1';
+            }
+        });
+
+        // Update grouping toggle button state
+        const toggleBtn = table.closest('.accordion-body')?.querySelector('.market-group-toggle');
+        if (toggleBtn) {
+            toggleBtn.setAttribute('aria-pressed', grouped ? 'true' : 'false');
+            toggleBtn.classList.toggle('active', grouped);
+        }
+    }
+
+    // Initialize all market tables
+    function initMarketTables() {
+        document.querySelectorAll('.market-table').forEach(table => {
+            const eventId = table.querySelector('tbody tr[data-event-id]')?.dataset.eventId;
+            if (!eventId) return;
+            const key = `event-${eventId}`;
+            if (!tablePrefs[key]) tablePrefs[key] = defaultPrefs();
+
+            // Only register listeners once per table element
+            if (!initializedTables.has(table)) {
+                initializedTables.add(table);
+
+                // Sort header clicks
+                table.querySelectorAll('.sort-header').forEach(th => {
+                    const handler = (e) => {
+                        e.stopPropagation(); // prevent accordion toggle
+                        const col = th.dataset.sortCol;
+                        const prefs = tablePrefs[key];
+                        if (prefs.sortCol === col) {
+                            prefs.sortDir = prefs.sortDir === 'asc' ? 'desc' : 'asc';
+                        } else {
+                            prefs.sortCol = col;
+                            prefs.sortDir = 'asc';
+                        }
+                        renderTable(table, prefs);
+                        saveTablePrefs(tablePrefs);
+                    };
+                    th.addEventListener('click', handler);
+                    th.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler(e); }
+                    });
+                });
+
+                // Grouping toggle
+                const toggleBtn = table.closest('.accordion-body')?.querySelector('.market-group-toggle');
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const prefs = tablePrefs[key];
+                        prefs.grouped = !prefs.grouped;
+                        renderTable(table, prefs);
+                        saveTablePrefs(tablePrefs);
+                    });
+                }
+            }
+
+            // Always re-render with current prefs (e.g. when accordion re-opens)
+            renderTable(table, tablePrefs[key]);
+        });
+    }
+
+    // Re-init tables when an accordion item is shown (lazy: rows exist in DOM from initial render)
+    document.querySelectorAll('.accordion-collapse').forEach(collapse => {
+        collapse.addEventListener('shown.bs.collapse', () => initMarketTables());
+    });
+
+    initMarketTables();
+
     // Add keyboard navigation for accessibility
     document.querySelectorAll('.accordion-button').forEach(button => {
         button.addEventListener('keypress', function(e) {
@@ -468,128 +656,64 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Feeling Lucky button - fetch current API results and highlight a random market in the table
+    // Feeling Lucky button - choose from currently visible (filtered) frontend rows
     const luckyBtn = document.getElementById('feeling-lucky');
     if (luckyBtn) {
-        luckyBtn.addEventListener('click', async function() {
-            const target = document.getElementById('target')?.value || '';
-            const tolerance = document.getElementById('tolerance')?.value || '';
-            const sport = document.getElementById('sport')?.value || '';
-            const params = new URLSearchParams();
-            if (target) params.set('target', target);
-            if (tolerance) params.set('tolerance', tolerance);
-            if (sport) params.set('sport', sport);
-            
-            // Show loading animation
-            showLoading();
-            
-            try {
-                const resp = await fetch(`/api/bets?${params.toString()}`);
-                if (!resp.ok) {
-                    hideLoading();
-                    return;
-                }
-                const bets = await resp.json();
-                
-                // Hide loading after receiving response
-                hideLoading();
-                
-                if (!bets || bets.length === 0) {
-                    showToast('No bets found', 'Try adjusting your criteria', 'warning');
-                    return;
-                }
-                const choice = bets[Math.floor(Math.random() * bets.length)];
-                if (!choice) return;
+        luckyBtn.addEventListener('click', function() {
+            // Clear previous lucky highlights
+            document.querySelectorAll('tr.ds-lucky-row').forEach(r => {
+                r.classList.remove('ds-lucky-row', 'ds-lucky-highlight');
+                const badge = r.querySelector('.ds-lucky-ribbon-inline');
+                if (badge) badge.remove();
+            });
 
-                // Clear previous lucky highlights
-                document.querySelectorAll('tr.ds-lucky-row').forEach(r => {
-                    r.classList.remove('ds-lucky-row', 'ds-lucky-highlight');
-                    const sticker = r.querySelector('.ds-lucky-ribbon');
-                    if (sticker) sticker.remove();
-                });
+            // Only consider rows from events that are currently visible after frontend filters.
+            const visibleEventRows = Array.from(
+                document.querySelectorAll('.accordion-item[data-event-id]:not(.filter-hidden) tr[data-event-id][data-decimal]')
+            );
 
-                const eventId = String(choice.event_id);
-                const marketName = String(choice.market_name);
-                const outcome = String(choice.outcome);
-                const decimal = String(choice.decimal);
+            if (visibleEventRows.length === 0) {
+                showToast('No visible bets', 'Adjust filters to show at least one event', 'warning');
+                return;
+            }
 
-                // Find matching row in DOM
-                const selector = `tr[data-event-id="${eventId}"]`;
-                const candidates = Array.from(document.querySelectorAll(selector));
+            const matchedRow = visibleEventRows[Math.floor(Math.random() * visibleEventRows.length)];
+            if (!matchedRow) return;
 
-                let matchedRow = null;
-                for (const row of candidates) {
-                    const mname = row.getAttribute('data-market-name') || '';
-                    const out = row.getAttribute('data-outcome') || '';
-                    const dec = row.getAttribute('data-decimal') || '';
-                    if (mname === marketName && out === outcome) {
-                        matchedRow = row;
-                        break;
-                    }
-                    // fallback: match by decimal if names differ due to formatting
-                    if (!matchedRow && dec === decimal) matchedRow = row;
+            const eventId = matchedRow.dataset.eventId;
+            const marketName = matchedRow.dataset.marketName || 'Market';
+            const outcome = matchedRow.dataset.outcome || 'Outcome';
+            const decimal = parseFloat(matchedRow.dataset.decimal || '0');
+
+            const placeSticker = () => {
+                // Scroll after collapse is shown so row geometry is stable.
+                matchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                matchedRow.classList.add('ds-lucky-row', 'ds-lucky-highlight');
+
+                // Add inline sticker in odds cell so it sits left of the odds value.
+                const rowSticker = document.createElement('span');
+                rowSticker.className = 'ds-lucky-ribbon-inline';
+                rowSticker.textContent = 'Lucky Bet';
+                const oddsCell = matchedRow.querySelector('td:last-child');
+                if (oddsCell) {
+                    oddsCell.prepend(rowSticker);
                 }
 
-                if (matchedRow) {
-                    // Expand the accordion for the event
-                    const collapseId = `#event-${eventId}`;
-                    const collapseEl = document.querySelector(collapseId);
-                    if (collapseEl) {
-                        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl);
-                        bsCollapse.show();
-                    }
+                showToast('Lucky pick!', `${marketName}: ${outcome} @ ${decimal.toFixed(2)}`, 'success');
+            };
 
-                    // Scroll into view and highlight
-                    matchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    matchedRow.classList.add('ds-lucky-row', 'ds-lucky-highlight');
-                    
-                    // Show toast with bet info
-                    showToast('Lucky pick!', `${choice.outcome} @ ${parseFloat(choice.decimal).toFixed(2)}`, 'success');
-
-                    // Add floating, tilted sticker overlayed across the row
-                    // Remove previous floating stickers first
-                    document.querySelectorAll('.ds-lucky-ribbon-floating').forEach(s => s.remove());
-
-                    const sticker = document.createElement('div');
-                    sticker.className = 'ds-lucky-ribbon-floating';
-                    sticker.textContent = 'Lucky Bet';
-
-                    // Add to body so it overlays across table layout
-                    document.body.appendChild(sticker);
-
-                    // Position sticker centered over the matched row (account for scrolling)
-                    const rowRect = matchedRow.getBoundingClientRect();
-                    const scrollTop = window.scrollY || window.pageYOffset;
-                    const centerX = rowRect.left + rowRect.width * 0.5;
-                    const centerY = rowRect.top + scrollTop + rowRect.height * 0.5;
-
-                    // Use translate(-50%, -50%) to center the sticker at (left, top)
-                    sticker.style.left = `${centerX}px`;
-                    sticker.style.top = `${centerY}px`;
-                    sticker.style.transform = 'rotate(-12deg) translate(-50%, -50%) scale(0.85)';
-                    sticker.style.opacity = '0';
-
-                    // Force layout then animate in
-                    requestAnimationFrame(() => {
-                        sticker.style.transition = 'transform 220ms ease, opacity 220ms ease';
-                        sticker.style.transform = 'rotate(-12deg) translate(-50%, -50%) scale(1)';
-                        sticker.style.opacity = '1';
-                    });
-
-                    // Auto-remove sticker after 5 seconds
-                    setTimeout(() => {
-                        sticker.style.opacity = '0';
-                        sticker.style.transform = 'rotate(-12deg) translate(-50%, -50%) scale(0.9)';
-                        setTimeout(() => sticker.remove(), 300);
-                    }, 5000);
+            // Expand the accordion for the selected event and place sticker after expansion.
+            const collapseEl = document.querySelector(`#event-${eventId}`);
+            if (collapseEl) {
+                const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl);
+                if (!collapseEl.classList.contains('show')) {
+                    collapseEl.addEventListener('shown.bs.collapse', placeSticker, { once: true });
+                    bsCollapse.show();
                 } else {
-                    console.warn('Lucky choice not found in DOM', choice);
-                    showToast('Bet not displayed', 'Try searching first', 'warning');
+                    placeSticker();
                 }
-            } catch (e) {
-                hideLoading();
-                showToast('Error', 'Failed to fetch bets', 'error');
-                console.error('Feeling Lucky failed', e);
+            } else {
+                placeSticker();
             }
         });
     }

@@ -9,17 +9,60 @@ jobs:
   warm-cache:
     runs-on: ubuntu-latest
     steps:
-      - name: Call internal prefetch endpoint
+      - name: Setup Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Warm cache on every machine
         env:
-          PREFETCH_URL: ${{ secrets.PREFETCH_URL }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           PREFETCH_TOKEN: ${{ secrets.PREFETCH_TOKEN }}
+          WEB_APP_NAME: ${{ vars.WEB_APP_NAME }}
         run: |
-          if [ -z "$PREFETCH_URL" ] || [ -z "$PREFETCH_TOKEN" ]; then
-            echo "Missing PREFETCH_URL or PREFETCH_TOKEN secret"
+          set -euo pipefail
+
+          if [ -z "${FLY_API_TOKEN:-}" ] || [ -z "${PREFETCH_TOKEN:-}" ] || [ -z "${WEB_APP_NAME:-}" ]; then
+            echo "Missing FLY_API_TOKEN secret, PREFETCH_TOKEN secret, or WEB_APP_NAME repo variable"
             exit 1
           fi
 
-          curl --fail --show-error --silent \
-            -X POST \
-            -H "x-prefetch-token: $PREFETCH_TOKEN" \
-            "$PREFETCH_URL"
+          BASE_URL="https://${WEB_APP_NAME}.fly.dev"
+          PREFETCH_URL="${BASE_URL}/internal/prefetch"
+          STATUS_URL="${BASE_URL}/internal/status"
+
+          MACHINE_IDS="$(flyctl machine list -a "$WEB_APP_NAME" | awk 'tolower($1) ~ /^[0-9a-f]{14,}$/ && tolower($2) != "destroyed" {print $1}')"
+          echo "Resolved machine IDs: $MACHINE_IDS"
+
+          if [ -z "$MACHINE_IDS" ]; then
+            echo "No machines found for app $WEB_APP_NAME"
+            exit 1
+          fi
+
+          for MID in $MACHINE_IDS; do
+            echo "Warming machine $MID"
+
+            flyctl machine start "$MID" -a "$WEB_APP_NAME" || true
+
+            success=0
+            for i in $(seq 1 25); do
+              if curl --fail --show-error --silent \
+                --retry 5 --retry-delay 2 --retry-all-errors \
+                -X POST \
+                -H "x-prefetch-token: $PREFETCH_TOKEN" \
+                -H "fly-force-instance-id: $MID" \
+                "$PREFETCH_URL"; then
+                success=1
+                break
+              fi
+              sleep 3
+            done
+
+            if [ "$success" -ne 1 ]; then
+              echo "Failed to warm cache on machine $MID"
+              exit 1
+            fi
+
+            curl --fail --show-error --silent \
+              --retry 5 --retry-delay 2 --retry-all-errors \
+              -H "fly-force-instance-id: $MID" \
+              "$STATUS_URL"
+          done

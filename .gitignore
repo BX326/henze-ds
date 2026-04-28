@@ -22,3 +22,5 @@ Cargo.lock
 
 # Custom system prompt override
 system_prompt.local.txt
+
+*.db

@@ -165,6 +165,10 @@ pub struct EventMarket {
     pub id: String,
     #[serde(default)]
     pub name: String,
+    #[serde(default, rename = "type")]
+    pub market_type: String,
+    #[serde(default, rename = "subType")]
+    pub market_sub_type: String,
     #[serde(default, deserialize_with = "deserialize_outcomes")]
     pub outcomes: Vec<EventOutcome>,
 }
