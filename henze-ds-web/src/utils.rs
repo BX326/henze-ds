@@ -45,7 +45,7 @@ fn cache_key_for_filter(filter: &HenzeFilter) -> String {
         .unwrap_or("all");
 
     format!(
-        "bets:v1:sport={}:target={:.3}:tol={:.3}:from={}:to={}:live={}:include_started={}",
+        "bets:v2:sport={}:target={:.3}:tol={:.3}:from={}:to={}:live={}:include_started={}",
         sport,
         filter.target,
         filter.tolerance,

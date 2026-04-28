@@ -23,22 +23,25 @@ pub struct HenzeInfo {
     pub event_time: String,
     pub event_time_utc: String,
     pub market_name: String,
+    #[serde(default)]
     pub market_type: String,
+    #[serde(default)]
     pub market_sub_type: String,
     pub outcome: String,
     pub decimal: f64,
     pub event_url: String,
     pub is_live: bool,
     pub match_minute: Option<i32>,
+    #[serde(default)]
     pub sport_id: String,
     pub sport_name: String,
-    /// Category ID (league/competition identifier)
+    #[serde(default)]
     pub category_id: String,
-    /// Category name (e.g., "Premier League", "Bundesliga")
+    #[serde(default)]
     pub category_name: String,
-    /// Class ID (country/region identifier)
+    #[serde(default)]
     pub class_id: String,
-    /// Class name (e.g., "England", "Germany")
+    #[serde(default)]
     pub class_name: String,
 }
 
