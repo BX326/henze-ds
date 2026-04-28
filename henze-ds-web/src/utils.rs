@@ -4,6 +4,7 @@ use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 use chrono_tz::Europe::Copenhagen;
 use henze_ds::{available_sports, HenzeFilter, HenzeInfo};
 use std::fs;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -200,35 +201,61 @@ pub async fn fetch_bets_with_cache(
 }
 
 /// Group bets by event, sorting live events first.
-pub fn group_bets_by_event(bets: &[HenzeInfo]) -> Vec<GroupedEvent> {
+pub fn group_bets_by_event(bets: Vec<HenzeInfo>) -> Vec<GroupedEvent> {
     let mut event_map: HashMap<String, GroupedEvent> = HashMap::new();
 
     for bet in bets {
-        let entry = event_map
-            .entry(bet.event_id.clone())
-            .or_insert_with(|| GroupedEvent {
-                event_id: bet.event_id.clone(),
-                event_name: bet.event_name.clone(),
-                event_time: bet.event_time.clone(),
-                event_time_utc: bet.event_time_utc.clone(),
-                event_url: bet.event_url.clone(),
-                is_live: bet.is_live,
-                match_minute: bet.match_minute,
-                sport_name: bet.sport_name.clone(),
-                category_id: bet.category_id.clone(),
-                category_name: bet.category_name.clone(),
-                class_id: bet.class_id.clone(),
-                class_name: bet.class_name.clone(),
-                markets: Vec::new(),
-            });
+        let HenzeInfo {
+            event_id,
+            event_name,
+            event_time,
+            event_time_utc,
+            market_name,
+            market_type,
+            market_sub_type,
+            outcome,
+            decimal,
+            event_url,
+            is_live,
+            match_minute,
+            sport_id: _,
+            sport_name,
+            category_id,
+            category_name,
+            class_id,
+            class_name,
+        } = bet;
 
-        entry.markets.push(MarketInfo {
-            market_name: bet.market_name.clone(),
-            market_type: bet.market_type.clone(),
-            market_sub_type: bet.market_sub_type.clone(),
-            outcome: bet.outcome.clone(),
-            decimal: bet.decimal,
-        });
+        let market = MarketInfo {
+            market_name,
+            market_type,
+            market_sub_type,
+            outcome,
+            decimal,
+        };
+
+        match event_map.entry(event_id.clone()) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().markets.push(market);
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(GroupedEvent {
+                    event_id,
+                    event_name,
+                    event_time,
+                    event_time_utc,
+                    event_url,
+                    is_live,
+                    match_minute,
+                    sport_name,
+                    category_id,
+                    category_name,
+                    class_id,
+                    class_name,
+                    markets: vec![market],
+                });
+            }
+        }
     }
 
     let mut events: Vec<GroupedEvent> = event_map.into_values().collect();
@@ -295,13 +322,13 @@ pub async fn fetch_events_page(
 ) -> Result<EventsPage, Box<dyn Error>> {
     log_memory_checkpoint("fetch_events_page:start");
 
-    let all_bets = fetch_bets_with_cache(filter).await?;
+    let bets = fetch_bets_with_cache(filter).await?;
     if memory_logging_enabled() {
-        eprintln!("[mem] stage=fetch_events_page:after_fetch_bets bets={}", all_bets.len());
+        eprintln!("[mem] stage=fetch_events_page:after_fetch_bets bets={}", bets.len());
     }
     log_memory_checkpoint("fetch_events_page:after_fetch_bets");
 
-    let all_events = group_bets_by_event(&all_bets);
+    let mut all_events = group_bets_by_event(bets);
     if memory_logging_enabled() {
         eprintln!(
             "[mem] stage=fetch_events_page:after_group_events events={}",
@@ -319,25 +346,28 @@ pub async fn fetch_events_page(
     };
 
     // Apply class filter
-    let filtered: Vec<GroupedEvent> = match class_id.as_deref() {
-        Some(cid) if !cid.is_empty() => all_events.into_iter().filter(|e| e.class_id == cid).collect(),
-        _ => all_events,
-    };
+    if let Some(cid) = class_id.as_deref().filter(|cid| !cid.is_empty()) {
+        all_events.retain(|event| event.class_id == cid);
+    }
     if memory_logging_enabled() {
         eprintln!(
             "[mem] stage=fetch_events_page:after_filter page={} page_size={} filtered_events={}",
             page,
             page_size,
-            filtered.len()
+            all_events.len()
         );
     }
     log_memory_checkpoint("fetch_events_page:after_filter");
 
-    let total_events = filtered.len();
-    let total_markets: usize = filtered.iter().map(|e| e.markets.len()).sum();
+    let total_events = all_events.len();
+    let total_markets: usize = all_events.iter().map(|e| e.markets.len()).sum();
     let start = page * page_size;
     let has_more = start + page_size < total_events;
-    let events: Vec<GroupedEvent> = filtered.into_iter().skip(start).take(page_size).collect();
+    let events = if start >= total_events {
+        Vec::new()
+    } else {
+        all_events.into_iter().skip(start).take(page_size).collect()
+    };
     if memory_logging_enabled() {
         eprintln!(
             "[mem] stage=fetch_events_page:before_return returned_events={} total_events={} total_markets={} has_more={}",
