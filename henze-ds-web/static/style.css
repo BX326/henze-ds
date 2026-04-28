@@ -62,10 +62,10 @@ body {
     background: linear-gradient(90deg, rgba(234,168,0,0.06), rgba(0,201,120,0.03));
     position: relative;
 }
-.ds-lucky-ribbon {
-    position: absolute;
-    right: 0.5rem;
-    top: 0.25rem;
+.ds-lucky-ribbon-inline {
+    display: inline-block;
+    margin-right: 0.5rem;
+    vertical-align: middle;
     background: #eaa800;
     color: #004b32;
     font-weight: 700;
@@ -73,21 +73,6 @@ body {
     border-radius: 0.25rem;
     font-size: 0.7rem;
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-}
-.ds-lucky-ribbon-floating {
-    position: absolute;
-    z-index: 9999;
-    background: #eaa800;
-    color: #004b32;
-    font-weight: 800;
-    padding: 0.35rem 0.8rem;
-    border-radius: 0.35rem;
-    font-size: 0.85rem;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.45);
-    transform: rotate(-12deg) translate(-50%, 0) scale(0.98);
-    pointer-events: none;
-    opacity: 0.98;
-    transition: transform 180ms ease, opacity 180ms ease;
 }
 .ds-lucky-highlight {
     outline: 3px solid rgba(234,168,0,0.18);
@@ -989,4 +974,60 @@ a:hover {
     #advanced-filters-toggle {
         font-size: 0.85rem;
     }
+}
+
+/* ========== Market Table: Sorting & Grouping ========== */
+
+/* Sortable column headers */
+.sort-header {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sort-header:hover {
+    background-color: var(--bs-tertiary-bg);
+}
+
+.sort-header.sort-active {
+    color: var(--bs-secondary);
+}
+
+.sort-icon {
+    opacity: 0.45;
+    font-size: 0.75em;
+    transition: opacity 0.15s;
+}
+
+.sort-header:hover .sort-icon,
+.sort-header.sort-active .sort-icon {
+    opacity: 1;
+}
+
+/* Controls bar above each event table */
+.market-table-controls {
+    background-color: var(--bs-tertiary-bg);
+    font-size: 0.85rem;
+}
+
+/* Grouping toggle button — uses Bootstrap btn-outline-secondary; add active glow */
+.market-group-toggle.active {
+    background-color: var(--bs-secondary);
+    border-color: var(--bs-secondary);
+    color: #1a1a1a;
+}
+
+/* Group header rows injected by JS */
+.market-group-header td {
+    background-color: #2e2e2e;
+    padding: 0.25rem 0.75rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.market-group-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bs-secondary);
 }

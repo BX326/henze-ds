@@ -185,6 +185,8 @@ pub fn group_bets_by_event(bets: &[HenzeInfo]) -> Vec<GroupedEvent> {
 
         entry.markets.push(MarketInfo {
             market_name: bet.market_name.clone(),
+            market_type: bet.market_type.clone(),
+            market_sub_type: bet.market_sub_type.clone(),
             outcome: bet.outcome.clone(),
             decimal: bet.decimal,
         });

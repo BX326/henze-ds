@@ -23,6 +23,8 @@ pub struct HenzeInfo {
     pub event_time: String,
     pub event_time_utc: String,
     pub market_name: String,
+    pub market_type: String,
+    pub market_sub_type: String,
     pub outcome: String,
     pub decimal: f64,
     pub event_url: String,
@@ -332,6 +334,8 @@ pub async fn retrieve_henze_data_with_filter(
 
                 event.markets.iter().flat_map(move |market| {
                     let market_name = &market.name;
+                    let market_type = market.market_type.clone();
+                    let market_sub_type = market.market_sub_type.clone();
                     let event_url = event_url.clone();
                     let event_time = event_time.clone();
                     let sport_id = sport_id.clone();
@@ -350,6 +354,8 @@ pub async fn retrieve_henze_data_with_filter(
                         let category_name = category_name.clone();
                         let class_id = class_id.clone();
                         let class_name = class_name.clone();
+                        let market_type = market_type.clone();
+                        let market_sub_type = market_sub_type.clone();
                         outcome.prices.iter().filter_map(move |price| {
                             // Handle optional decimal - skip if None
                             let decimal = price.decimal?;
@@ -359,6 +365,8 @@ pub async fn retrieve_henze_data_with_filter(
                                 event_time: event_time.clone(),
                                 event_time_utc: event_time_utc.to_rfc3339(),
                                 market_name: market_name.clone().to_string(),
+                                market_type: market_type.clone(),
+                                market_sub_type: market_sub_type.clone(),
                                 outcome: outcome_name.clone(),
                                 decimal,
                                 event_url: event_url.clone(),

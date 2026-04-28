@@ -17,6 +17,8 @@ pub struct FilterParams {
 #[derive(Serialize, Clone)]
 pub struct MarketInfo {
     pub market_name: String,
+    pub market_type: String,
+    pub market_sub_type: String,
     pub outcome: String,
     pub decimal: f64,
 }
