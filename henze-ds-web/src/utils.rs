@@ -3,6 +3,7 @@
 use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 use chrono_tz::Europe::Copenhagen;
 use henze_ds::{available_sports, HenzeFilter, HenzeInfo};
+use std::fs;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -13,6 +14,37 @@ use crate::models::{EventsPage, FilterOption, GroupedEvent, MarketInfo, SportOpt
 
 static RESPONSE_CACHE: OnceLock<Option<ResponseCache>> = OnceLock::new();
 static LAST_PREFETCH_TIME: Mutex<Option<DateTime<Utc>>> = Mutex::new(None);
+static MEMORY_LOGGING_ENABLED: OnceLock<bool> = OnceLock::new();
+
+fn memory_logging_enabled() -> bool {
+    *MEMORY_LOGGING_ENABLED.get_or_init(|| {
+        env::var("HENZE_MEMORY_LOG")
+            .map(|v| {
+                let v = v.trim().to_ascii_lowercase();
+                matches!(v.as_str(), "1" | "true" | "yes" | "on")
+            })
+            .unwrap_or(false)
+    })
+}
+
+fn rss_kb() -> Option<u64> {
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    status
+        .lines()
+        .find_map(|line| line.strip_prefix("VmRSS:"))
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|n| n.parse::<u64>().ok())
+}
+
+fn log_memory_checkpoint(stage: &str) {
+    if !memory_logging_enabled() {
+        return;
+    }
+    match rss_kb() {
+        Some(kb) => eprintln!("[mem] stage={} rss_kb={}", stage, kb),
+        None => eprintln!("[mem] stage={} rss_kb=unknown", stage),
+    }
+}
 
 fn response_cache() -> Option<&'static ResponseCache> {
     RESPONSE_CACHE
@@ -57,6 +89,13 @@ fn cache_key_for_filter(filter: &HenzeFilter) -> String {
 }
 
 pub async fn prefetch_standard_windows(force_refresh: bool) -> Result<(), Box<dyn Error>> {
+    // Warm a broad rolling window used by interactive browsing.
+    let now = Utc::now();
+    let rolling_week = HenzeFilter::default()
+        .with_time_range(Some(now), Some(now + Duration::days(7)))
+        .with_include_started(false);
+    let _ = fetch_bets_with_cache_control(rolling_week, force_refresh).await?;
+
     for day_offset in [0_i64, 1, 2] {
         let Some((from, to)) = copenhagen_day_bounds(Utc::now(), day_offset) else {
             continue;
@@ -254,8 +293,22 @@ pub async fn fetch_events_page(
     page: usize,
     page_size: usize,
 ) -> Result<EventsPage, Box<dyn Error>> {
+    log_memory_checkpoint("fetch_events_page:start");
+
     let all_bets = fetch_bets_with_cache(filter).await?;
+    if memory_logging_enabled() {
+        eprintln!("[mem] stage=fetch_events_page:after_fetch_bets bets={}", all_bets.len());
+    }
+    log_memory_checkpoint("fetch_events_page:after_fetch_bets");
+
     let all_events = group_bets_by_event(&all_bets);
+    if memory_logging_enabled() {
+        eprintln!(
+            "[mem] stage=fetch_events_page:after_group_events events={}",
+            all_events.len()
+        );
+    }
+    log_memory_checkpoint("fetch_events_page:after_group_events");
 
     // Classes are computed from the full event set (pre-class filter) so the dropdown
     // always shows all available classes regardless of the current selection.
@@ -270,12 +323,31 @@ pub async fn fetch_events_page(
         Some(cid) if !cid.is_empty() => all_events.into_iter().filter(|e| e.class_id == cid).collect(),
         _ => all_events,
     };
+    if memory_logging_enabled() {
+        eprintln!(
+            "[mem] stage=fetch_events_page:after_filter page={} page_size={} filtered_events={}",
+            page,
+            page_size,
+            filtered.len()
+        );
+    }
+    log_memory_checkpoint("fetch_events_page:after_filter");
 
     let total_events = filtered.len();
     let total_markets: usize = filtered.iter().map(|e| e.markets.len()).sum();
     let start = page * page_size;
     let has_more = start + page_size < total_events;
     let events: Vec<GroupedEvent> = filtered.into_iter().skip(start).take(page_size).collect();
+    if memory_logging_enabled() {
+        eprintln!(
+            "[mem] stage=fetch_events_page:before_return returned_events={} total_events={} total_markets={} has_more={}",
+            events.len(),
+            total_events,
+            total_markets,
+            has_more
+        );
+    }
+    log_memory_checkpoint("fetch_events_page:before_return");
 
     Ok(EventsPage {
         events,

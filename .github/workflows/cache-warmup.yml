@@ -40,7 +40,12 @@ jobs:
           for MID in $MACHINE_IDS; do
             echo "Warming machine $MID"
 
-            flyctl machine start "$MID" -a "$WEB_APP_NAME" || true
+            MACHINE_STATE="$(flyctl machine status "$MID" -a "$WEB_APP_NAME" --json 2>/dev/null | grep -o '"state":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "unknown")"
+            echo "Machine $MID state: $MACHINE_STATE"
+            if [ "$MACHINE_STATE" != "started" ]; then
+              flyctl machine start "$MID" -a "$WEB_APP_NAME" || true
+              sleep 5
+            fi
 
             success=0
             for i in $(seq 1 25); do

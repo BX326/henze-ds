@@ -328,41 +328,32 @@ impl ApiClient {
             }
         }
 
-        let response_text = self.client.get(url.clone()).send().await?.text().await?;
-        
-        // First deserialize as generic Value to handle null gracefully
-        match serde_json::from_str::<serde_json::Value>(&response_text) {
-            Ok(json_value) => {
-                // Now manually handle the data.events null case
-                let mut response = EventListResponse::default();
-                
-                if let Some(data_obj) = json_value.get("data").and_then(|v| v.as_object()) {
-                    let mut data = EventListData::default();
-                    
-                    if let Some(events_val) = data_obj.get("events") {
-                        if !events_val.is_null() {
-                            match serde_json::from_value::<Vec<EventListEvent>>(events_val.clone()) {
-                                Ok(events) => {
-                                    data.events = events;
-                                }
-                                Err(e) => {
-                                    eprintln!("Failed to deserialize events field: {}", e);
-                                    data.events = vec![];
-                                }
-                            }
-                        } else {
+        let json_value = self.client.get(url.clone()).send().await?.json::<serde_json::Value>().await?;
+
+        // Manually handle data.events null/malformed payloads gracefully.
+        let mut response = EventListResponse::default();
+
+        if let Some(data_obj) = json_value.get("data").and_then(|v| v.as_object()) {
+            let mut data = EventListData::default();
+
+            if let Some(events_val) = data_obj.get("events") {
+                if !events_val.is_null() {
+                    match serde_json::from_value::<Vec<EventListEvent>>(events_val.clone()) {
+                        Ok(events) => {
+                            data.events = events;
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to deserialize events field: {}", e);
                             data.events = vec![];
                         }
                     }
-                    response.data = data;
+                } else {
+                    data.events = vec![];
                 }
-                
-                Ok(response)
             }
-            Err(e) => {
-                eprintln!("JSON parse error: {} at line {} col {}", e, e.line(), e.column());
-                Err(Box::new(e))
-            }
+            response.data = data;
         }
+
+        Ok(response)
     }
 }
