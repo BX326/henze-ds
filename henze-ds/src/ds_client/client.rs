@@ -2,6 +2,7 @@ use reqwest::Client;
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::time::Duration;
 
 use super::schema::TimeBandEventList;
 
@@ -257,8 +258,14 @@ pub struct ApiClient {
 
 impl ApiClient {
     pub fn new() -> Self {
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(20))
+            .build()
+            .expect("failed to build HTTP client");
+
         ApiClient {
-            client: Client::new(),
+            client,
             base_url: BASE_URL.to_string(),
         }
     }
