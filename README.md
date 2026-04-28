@@ -1,31 +1,21 @@
 # henze-ds
-Application for retrieving Henze-compliant betting odds from Danske Spil
 
-## Approach
+A Rust workspace for retrieving and surfacing Henze-compliant betting odds from the Danske Spil API.
 
-### Generating Rust Types
+## Components
 
-```mermaid
-flowchart LR
-    A[**Danske Spil** Endpoint] --> |JSON|B(**Quicktype**)
-    B -->|JSON Schema| C[**Post-processor**]
-    C -->|Flexible Schema| D(**Typify**)
-    D --> E[**Rust Types**]
-```
+- **[henze-ds](./henze-ds)** - Core library; fetches odds from the Danske Spil API and deserialises them into typed Rust structs generated via [Typify](https://github.com/oxidecomputer/typify)
+- **[henze-ds-cli](./henze-ds-cli)** - Command-line interface for querying odds directly
+- **[henze-ds-discord](./henze-ds-discord)** - Discord bot that posts a daily selection of Henze bets to a configured channel. Supports AI-assisted bet selection via OpenAI
+- **[henze-ds-web](./henze-ds-web)** - Web frontend built with Rocket and Tera templates for browsing odds in a browser
+- **[schema-flex](./schema-flex)** - Utility for post-processing the Quicktype-generated JSON schema before type generation. Removes `additionalProperties: false` and converts string enums to plain strings so that unexpected API fields and values are tolerated at runtime
 
-Rust types are defined for the JSON objects fetched via the Danske Spil API in a semi-automatic manner. Parsing the API responses to Rust types rather than manipulating the JSON directly makes for more readable and maintainable code. The JSON returned by the Danske Spil API is converted to a JSON Schema using [Quicktype](https://quicktype.io/), then made flexible by a post-processing script, and finally input to [Typify](https://github.com/oxidecomputer/typify) to generate corresponding [Rust types](./henze-ds/src/ds_client/schema.rs).
+## Regenerating Rust Types
 
-#### Making the Schema Flexible
-
-Quicktype generates strict schemas with `additionalProperties: false` and fixed enum variants. This causes deserialization to fail when the API returns unexpected fields or new enum values. The [schema-flex](./schema-flex) tool addresses this by:
-
-1. **Removing `additionalProperties: false`** - Unknown fields are silently ignored instead of causing errors
-2. **Converting string enums to plain strings** - Unknown enum values are accepted as strings instead of causing deserialization errors
-
-#### Regenerating Types
+The types in [henze-ds/src/ds_client/schema.rs](./henze-ds/src/ds_client/schema.rs) are generated from the Danske Spil API response. To regenerate them:
 
 ```bash
-# 1. Fetch fresh JSON from the API and generate schema
+# 1. Fetch fresh JSON from the API and generate a schema
 quicktype https://content.sb.danskespil.dk/... -l schema -o henze-ds/src/ds_client/schema.json
 
 # 2. Make the schema flexible
