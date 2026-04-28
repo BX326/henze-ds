@@ -27,7 +27,6 @@ jobs:
 
           BASE_URL="https://${WEB_APP_NAME}.fly.dev"
           PREFETCH_URL="${BASE_URL}/internal/prefetch"
-          STATUS_URL="${BASE_URL}/internal/status"
 
           MACHINE_IDS="$(flyctl machine list -a "$WEB_APP_NAME" | awk 'tolower($1) ~ /^[0-9a-f]{14,}$/ && tolower($2) != "destroyed" {print $1}')"
           echo "Resolved machine IDs: $MACHINE_IDS"
@@ -69,5 +68,5 @@ jobs:
             curl --fail --show-error --silent \
               --retry 5 --retry-delay 2 --retry-all-errors \
               -H "fly-force-instance-id: $MID" \
-              "$STATUS_URL"
+              "$PREFETCH_URL"
           done

@@ -10,7 +10,9 @@ use rocket::{catchers, launch, routes};
 use rocket_dyn_templates::Template;
 use std::env;
 
-use handlers::{api_bets, api_events, index, internal_prefetch, internal_status, not_found};
+use handlers::{
+    api_bets, api_events, index, internal_prefetch, internal_prefetch_status, not_found,
+};
 
 #[launch]
 fn rocket() -> _ {
@@ -24,7 +26,16 @@ fn rocket() -> _ {
         .unwrap_or_else(|_| format!("{}/static", env!("CARGO_MANIFEST_DIR")));
 
     rocket::build()
-        .mount("/", routes![index, api_events, api_bets, internal_prefetch, internal_status])
+        .mount(
+            "/",
+            routes![
+                index,
+                api_events,
+                api_bets,
+                internal_prefetch,
+                internal_prefetch_status,
+            ],
+        )
         .mount("/static", FileServer::from(static_path))
         .attach(Template::fairing())
         .register("/", catchers![not_found])

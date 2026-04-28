@@ -194,8 +194,8 @@ pub async fn internal_prefetch(_auth: PrefetchAuth) -> Status {
     }
 }
 
-#[get("/internal/status")]
-pub fn internal_status() -> Json<HealthStatus> {
+#[get("/internal/prefetch")]
+pub fn internal_prefetch_status() -> Json<HealthStatus> {
     let last_prefetch = get_last_prefetch_time().map(|dt| dt.to_rfc3339());
     Json(HealthStatus {
         status: "ok".to_string(),

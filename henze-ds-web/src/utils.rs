@@ -16,6 +16,7 @@ use crate::models::{EventsPage, FilterOption, GroupedEvent, MarketInfo, SportOpt
 static RESPONSE_CACHE: OnceLock<Option<ResponseCache>> = OnceLock::new();
 static LAST_PREFETCH_TIME: Mutex<Option<DateTime<Utc>>> = Mutex::new(None);
 static MEMORY_LOGGING_ENABLED: OnceLock<bool> = OnceLock::new();
+const PREFETCH_CHUNK_HOURS: i64 = 6;
 
 fn memory_logging_enabled() -> bool {
     *MEMORY_LOGGING_ENABLED.get_or_init(|| {
@@ -95,10 +96,10 @@ pub async fn prefetch_standard_windows(force_refresh: bool) -> Result<(), Box<dy
     let rolling_week = HenzeFilter::default()
         .with_time_range(Some(now), Some(now + Duration::days(7)))
         .with_include_started(false);
-    let _ = fetch_bets_with_cache_control(rolling_week, force_refresh).await?;
+    prefetch_filter_in_chunks(rolling_week, force_refresh).await?;
 
     for day_offset in [0_i64, 1, 2] {
-        let Some((from, to)) = copenhagen_day_bounds(Utc::now(), day_offset) else {
+        let Some((from, to)) = copenhagen_day_bounds(now, day_offset) else {
             continue;
         };
 
@@ -107,10 +108,34 @@ pub async fn prefetch_standard_windows(force_refresh: bool) -> Result<(), Box<dy
             .with_time_range(Some(from), Some(to))
             .with_include_started(false);
 
-        let _ = fetch_bets_with_cache_control(filter, force_refresh).await?;
+        prefetch_filter_in_chunks(filter, force_refresh).await?;
     }
 
     Ok(())
+}
+
+async fn prefetch_filter_in_chunks(
+    filter: HenzeFilter,
+    force_refresh: bool,
+) -> Result<(), Box<dyn Error>> {
+    match (filter.start_time_from, filter.start_time_to) {
+        (Some(from), Some(to)) if from < to => {
+            let mut cursor = from;
+            while cursor < to {
+                let chunk_end = std::cmp::min(cursor + Duration::hours(PREFETCH_CHUNK_HOURS), to);
+                let chunk_filter = filter
+                    .clone()
+                    .with_time_range(Some(cursor), Some(chunk_end));
+                let _ = fetch_bets_with_cache_control(chunk_filter, force_refresh).await?;
+                cursor = chunk_end;
+            }
+            Ok(())
+        }
+        _ => {
+            let _ = fetch_bets_with_cache_control(filter, force_refresh).await?;
+            Ok(())
+        }
+    }
 }
 
 pub fn record_prefetch_time() {
