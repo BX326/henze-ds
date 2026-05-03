@@ -24,3 +24,7 @@ cargo run -p schema-flex -- henze-ds/src/ds_client/schema.json
 # 3. Rebuild to regenerate Rust types via Typify
 cargo build
 ```
+
+## Deployment
+
+- Oracle VM multi-instance Discord bot deployment guide: [henze-ds-discord/deploy/oracle/README.md](./henze-ds-discord/deploy/oracle/README.md)

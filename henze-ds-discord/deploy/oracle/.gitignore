@@ -1,0 +1,2 @@
+# Keep real instance env files out of git if created locally
+instances/*.env

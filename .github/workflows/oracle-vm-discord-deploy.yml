@@ -1,0 +1,98 @@
+name: Deploy Discord Bots to Oracle VM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/oracle-vm-discord-deploy.yml'
+      - 'henze-ds-discord/deploy/**'
+      - 'henze-ds-discord/docker/discord-bot.Dockerfile'
+      - 'henze-ds-discord/**'
+      - 'henze-ds/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: oracle-discord-deploy
+      cancel-in-progress: false
+
+    env:
+      SSH_HOST: ${{ secrets.ORACLE_VM_HOST }}
+      SSH_USER: ${{ secrets.ORACLE_VM_USER }}
+      SSH_PORT: ${{ secrets.ORACLE_VM_SSH_PORT }}
+      APP_DIR: ${{ vars.ORACLE_VM_APP_DIR }}
+      RUNTIME_DIR: ${{ vars.ORACLE_VM_RUNTIME_DIR }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate required configuration
+        run: |
+          set -euo pipefail
+          [[ -n "${SSH_HOST}" ]] || { echo "Missing secret ORACLE_VM_HOST"; exit 1; }
+          [[ -n "${SSH_USER}" ]] || { echo "Missing secret ORACLE_VM_USER"; exit 1; }
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.ORACLE_VM_SSH_KEY }}
+
+      - name: Add VM host key
+        run: |
+          set -euo pipefail
+          port="${SSH_PORT:-22}"
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$port" "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Create deployment archive
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude='.git' \
+            --exclude='target' \
+            --exclude='**/target' \
+            -czf ds-henze-discord-release.tgz .
+
+      - name: Upload deployment archive
+        run: |
+          set -euo pipefail
+          port="${SSH_PORT:-22}"
+          scp -P "$port" ds-henze-discord-release.tgz "${SSH_USER}@${SSH_HOST}:/tmp/ds-henze-discord-release.tgz"
+
+      - name: Deploy on VM
+        run: |
+          set -euo pipefail
+          port="${SSH_PORT:-22}"
+          app_dir="${APP_DIR:-/opt/henze-discord/app}"
+          runtime_dir="${RUNTIME_DIR:-/opt/henze-discord/runtime}"
+
+          ssh -p "$port" "${SSH_USER}@${SSH_HOST}" <<EOF
+          set -euo pipefail
+          APP_DIR="$app_dir"
+          RUNTIME_DIR="$runtime_dir"
+
+          if [[ -z "\$APP_DIR" || "\$APP_DIR" == "/" ]]; then
+            echo "Refusing to deploy into APP_DIR=\$APP_DIR"
+            exit 1
+          fi
+
+          mkdir -p "\$APP_DIR"
+          rm -rf "\$APP_DIR"/*
+          tar -xzf /tmp/ds-henze-discord-release.tgz -C "\$APP_DIR"
+
+          cd "\$APP_DIR"
+          RUNTIME_DIR="\$RUNTIME_DIR" bash henze-ds-discord/deploy/oracle/bin/vm_deploy.sh
+          EOF
+
+      - name: Cleanup remote archive
+        if: always()
+        run: |
+          set -euo pipefail
+          port="${SSH_PORT:-22}"
+          ssh -p "$port" "${SSH_USER}@${SSH_HOST}" "rm -f /tmp/ds-henze-discord-release.tgz"

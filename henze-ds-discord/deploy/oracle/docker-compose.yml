@@ -1,0 +1,42 @@
+name: henze-discord
+
+x-bot-common: &bot-common
+  image: henze-ds-discord:local
+  build:
+    context: ../../..
+    dockerfile: henze-ds-discord/docker/discord-bot.Dockerfile
+  restart: unless-stopped
+  stop_grace_period: 30s
+  environment:
+    TZ: UTC
+    DATABASE_PATH: /data/henze_bets.db
+  networks:
+    - bot_net
+
+services:
+  bot_alpha:
+    <<: *bot-common
+    container_name: henze-discord-alpha
+    profiles: ["alpha"]
+    env_file:
+      - ${INSTANCE_CONFIG_DIR:-/opt/henze-discord/runtime/instances}/alpha.env
+    volumes:
+      - ${INSTANCE_STATE_DIR:-/opt/henze-discord/runtime/state}/alpha:/data
+    mem_limit: "320m"
+    cpus: "0.45"
+
+  bot_beta:
+    <<: *bot-common
+    container_name: henze-discord-beta
+    profiles: ["beta"]
+    env_file:
+      - ${INSTANCE_CONFIG_DIR:-/opt/henze-discord/runtime/instances}/beta.env
+    volumes:
+      - ${INSTANCE_STATE_DIR:-/opt/henze-discord/runtime/state}/beta:/data
+    mem_limit: "320m"
+    cpus: "0.45"
+
+networks:
+  bot_net:
+    driver: bridge
+    internal: true
