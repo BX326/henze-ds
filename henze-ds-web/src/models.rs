@@ -1,6 +1,7 @@
 //! Data models for the web application.
 
 use serde::Serialize;
+use henze_ds::HenzeInfo;
 
 /// Information about a single market/outcome.
 #[derive(Serialize, Clone)]
@@ -68,4 +69,22 @@ pub struct EventsPage {
     pub has_more: bool,
     /// Available classes for the filter dropdown (populated on page 0 only).
     pub classes: Vec<FilterOption>,
+}
+
+/// One matching multi-leg combination.
+#[derive(Serialize, Clone)]
+pub struct CombinationMatch {
+    pub legs: Vec<HenzeInfo>,
+    pub combined_odds: f64,
+    pub delta: f64,
+}
+
+/// Paginated combinations API response.
+#[derive(Serialize)]
+pub struct CombinationsPage {
+    pub combinations: Vec<CombinationMatch>,
+    pub total_combinations: usize,
+    pub page: usize,
+    pub page_size: usize,
+    pub has_more: bool,
 }

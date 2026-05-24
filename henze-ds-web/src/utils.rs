@@ -6,12 +6,16 @@ use henze_ds::{available_sports, HenzeFilter, HenzeInfo};
 use std::fs;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
 use std::error::Error;
 use std::sync::{Mutex, OnceLock};
 
 use crate::cache::ResponseCache;
-use crate::models::{EventsPage, FilterOption, GroupedEvent, MarketInfo, SportOption};
+use crate::models::{
+    CombinationMatch, CombinationsPage, EventsPage, FilterOption, GroupedEvent, MarketInfo,
+    SportOption,
+};
 
 static RESPONSE_CACHE: OnceLock<Option<ResponseCache>> = OnceLock::new();
 static LAST_PREFETCH_TIME: Mutex<Option<DateTime<Utc>>> = Mutex::new(None);
@@ -413,4 +417,259 @@ pub async fn fetch_events_page(
         has_more,
         classes,
     })
+}
+
+#[derive(Clone)]
+struct CombinationCandidate {
+    bet: HenzeInfo,
+    event_key: usize,
+}
+
+#[derive(Clone)]
+struct ComboRecord {
+    indices: Vec<usize>,
+    combined_odds: f64,
+    delta: f64,
+}
+
+struct ComboSearchState {
+    records: Vec<ComboRecord>,
+    selected: Vec<usize>,
+    used_events: HashSet<usize>,
+}
+
+fn powi_usize(base: f64, exp: usize) -> f64 {
+    base.powi(exp as i32)
+}
+
+/// Fetch matching combinations (up to max_legs) from the filtered leg candidate pool.
+pub async fn fetch_combinations_page(
+    filter: HenzeFilter,
+    class_id: Option<String>,
+    combo_target: f64,
+    combo_tolerance: f64,
+    max_legs: usize,
+    page: usize,
+    page_size: usize,
+) -> Result<CombinationsPage, Box<dyn Error>> {
+    let mut bets = fetch_bets_with_cache(filter).await?;
+
+    if let Some(cid) = class_id.as_deref().filter(|cid| !cid.is_empty()) {
+        bets.retain(|bet| bet.class_id == cid);
+    }
+
+    let upper_bound = combo_target + combo_tolerance;
+    let lower_bound = (combo_target - combo_tolerance).max(0.0);
+
+    let mut event_ids: HashMap<String, usize> = HashMap::new();
+    let mut next_event_key = 0_usize;
+    let mut candidates: Vec<CombinationCandidate> = Vec::new();
+
+    for bet in bets {
+        if !bet.decimal.is_finite() || bet.decimal <= 0.0 {
+            continue;
+        }
+
+        let event_key = if let Some(existing) = event_ids.get(&bet.event_id) {
+            *existing
+        } else {
+            let current = next_event_key;
+            next_event_key += 1;
+            event_ids.insert(bet.event_id.clone(), current);
+            current
+        };
+
+        candidates.push(CombinationCandidate { bet, event_key });
+    }
+
+    candidates.sort_by(|a, b| {
+        a.bet
+            .decimal
+            .partial_cmp(&b.bet.decimal)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    if candidates.is_empty() {
+        return Ok(CombinationsPage {
+            combinations: Vec::new(),
+            total_combinations: 0,
+            page,
+            page_size,
+            has_more: false,
+        });
+    }
+
+    let min_decimal = candidates.first().map(|c| c.bet.decimal).unwrap_or(1.0);
+    let max_decimal = candidates.last().map(|c| c.bet.decimal).unwrap_or(1.0);
+
+    // Quick feasibility check: if even the strongest possible parlay cannot reach
+    // lower bound, we can return immediately.
+    let max_possible = powi_usize(max_decimal, max_legs);
+    if max_possible < lower_bound {
+        return Ok(CombinationsPage {
+            combinations: Vec::new(),
+            total_combinations: 0,
+            page,
+            page_size,
+            has_more: false,
+        });
+    }
+
+    // Quick feasibility check in the opposite direction for odds >= 1.
+    if min_decimal >= 1.0 {
+        let min_possible = min_decimal;
+        if min_possible > upper_bound {
+            return Ok(CombinationsPage {
+                combinations: Vec::new(),
+                total_combinations: 0,
+                page,
+                page_size,
+                has_more: false,
+            });
+        }
+    }
+
+    let mut state = ComboSearchState {
+        records: Vec::new(),
+        selected: Vec::with_capacity(max_legs),
+        used_events: HashSet::with_capacity(max_legs),
+    };
+
+    collect_matching_combinations(
+        &candidates,
+        0,
+        1.0,
+        combo_target,
+        lower_bound,
+        upper_bound,
+        max_legs,
+        min_decimal,
+        max_decimal,
+        &mut state,
+    );
+
+    state.records.sort_by(|a, b| {
+        a.delta
+            .partial_cmp(&b.delta)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.indices.len().cmp(&b.indices.len()))
+            .then_with(|| {
+                let left = a
+                    .indices
+                    .iter()
+                    .map(|idx| &candidates[*idx].bet.event_id)
+                    .collect::<Vec<_>>();
+                let right = b
+                    .indices
+                    .iter()
+                    .map(|idx| &candidates[*idx].bet.event_id)
+                    .collect::<Vec<_>>();
+                left.cmp(&right)
+            })
+    });
+
+    let total_combinations = state.records.len();
+    let start = page * page_size;
+    let has_more = start + page_size < total_combinations;
+
+    let combinations = if start >= total_combinations {
+        Vec::new()
+    } else {
+        state
+            .records
+            .iter()
+            .skip(start)
+            .take(page_size)
+            .map(|record| CombinationMatch {
+                legs: record
+                    .indices
+                    .iter()
+                    .map(|idx| candidates[*idx].bet.clone())
+                    .collect(),
+                combined_odds: record.combined_odds,
+                delta: record.delta,
+            })
+            .collect()
+    };
+
+    Ok(CombinationsPage {
+        combinations,
+        total_combinations,
+        page,
+        page_size,
+        has_more,
+    })
+}
+
+fn collect_matching_combinations(
+    candidates: &[CombinationCandidate],
+    start_idx: usize,
+    current_product: f64,
+    target: f64,
+    lower_bound: f64,
+    upper_bound: f64,
+    max_legs: usize,
+    min_decimal: f64,
+    max_decimal: f64,
+    state: &mut ComboSearchState,
+) {
+    if state.selected.len() >= max_legs {
+        return;
+    }
+
+    let remaining_capacity = max_legs - state.selected.len();
+    if current_product * powi_usize(max_decimal, remaining_capacity) < lower_bound {
+        return;
+    }
+
+    if min_decimal >= 1.0 && current_product > upper_bound {
+        return;
+    }
+
+    for idx in start_idx..candidates.len() {
+        let candidate = &candidates[idx];
+        if state.used_events.contains(&candidate.event_key) {
+            continue;
+        }
+
+        let next_product = current_product * candidate.bet.decimal;
+        if next_product > upper_bound && candidate.bet.decimal >= 1.0 {
+            // Candidates are sorted by decimal ascending, so later options only increase product.
+            break;
+        }
+
+        let remaining_after_pick = max_legs - (state.selected.len() + 1);
+        if next_product * powi_usize(max_decimal, remaining_after_pick) < lower_bound {
+            continue;
+        }
+
+        state.selected.push(idx);
+        state.used_events.insert(candidate.event_key);
+
+        if next_product >= lower_bound && next_product <= upper_bound {
+            state.records.push(ComboRecord {
+                indices: state.selected.clone(),
+                combined_odds: next_product,
+                delta: (next_product - target).abs(),
+            });
+        }
+
+        if state.selected.len() < max_legs && next_product <= upper_bound {
+            collect_matching_combinations(
+                candidates,
+                idx + 1,
+                next_product,
+                target,
+                lower_bound,
+                upper_bound,
+                max_legs,
+                min_decimal,
+                max_decimal,
+                state,
+            );
+        }
+
+        state.used_events.remove(&candidate.event_key);
+        state.selected.pop();
+    }
 }

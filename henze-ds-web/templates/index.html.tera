@@ -166,6 +166,67 @@
                     <div class="loading-text">Searching for bets<span class="loading-dots"><span></span><span></span><span></span></span></div>
                 </div>
             </div>
+
+            <div class="card shadow-sm mb-3 card-dark" id="combinations-card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Combinations</h5>
+                    <span class="badge bg-secondary" id="combinations-badge">Loading...</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-12">
+                            <div class="form-text small text-muted mb-0">Build one combination by adding, replacing, and removing bets. Uses all matching events and allows one bet per event.</div>
+                        </div>
+                        <div class="col-12 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                            <div class="d-flex flex-wrap gap-3">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="omit-live-combos">
+                                    <label class="form-check-label small" for="omit-live-combos">
+                                        Omit live events
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" id="combo-clear-btn">
+                                    <i class="bi bi-x-circle me-1"></i> Clear Builder
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="combinations-empty-state" class="empty-state d-none py-2">
+                        <h6 class="mb-1">Builder is empty</h6>
+                        <p class="mb-0 small text-muted">Use Add Bet to start building your combination.</p>
+                    </div>
+
+                    <div class="table-responsive" id="combinations-table-wrap">
+                        <table class="table table-sm table-striped mb-2" id="combinations-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Legs</th>
+                                    <th class="text-end">Combined Odds</th>
+                                    <th class="text-end">Distance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="combinations-tbody"></tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="text-center pt-3">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" id="combo-add-leg-btn">
+                                            <i class="bi bi-plus-circle me-1"></i> Add Bet
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted" id="combinations-info">Loading...</small>
+                    </div>
+                </div>
+            </div>
+
             <div class="card shadow-sm card-dark">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Events</h5>

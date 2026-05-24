@@ -61,6 +61,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const clearFiltersBtn   = document.getElementById('clear-filters');
     const filterForm        = document.getElementById('filter-form');
     const apiLink           = document.getElementById('api-link');
+    const combosTbody       = document.getElementById('combinations-tbody');
+    const combosBadge       = document.getElementById('combinations-badge');
+    const combosInfo        = document.getElementById('combinations-info');
+    const combosEmptyState  = document.getElementById('combinations-empty-state');
+    const combosTableWrap   = document.getElementById('combinations-table-wrap');
+    const comboClearBtn     = document.getElementById('combo-clear-btn');
+    const comboAddLegBtn    = document.getElementById('combo-add-leg-btn');
+    const omitLiveCombosInput = document.getElementById('omit-live-combos');
+    const COMBO_TARGET_ODDS = 5.00;
+    const MAX_COMBO_BETS = 25;
 
     // ========== Pagination state ==========
     const PAGE_SIZE = 40;
@@ -69,13 +79,20 @@ document.addEventListener('DOMContentLoaded', function () {
     let hasMore     = false;
     let isFetching  = false;
 
+    let comboPage = -1;
+    let comboMatches = [];
+    let comboIsSearching = false;
+    let comboCandidatePool = [];
+    let comboCandidateSignature = '';
+
     // ========== Current advanced filter state ==========
     let advancedFilters = {
         time_preset: 'all',
         from_time:   '',
         to_time:     '',
         live_only:   false,
-        class_id:    ''
+        class_id:    '',
+        omit_live_events: false,
     };
 
     // ========== HTML escape ==========
@@ -89,13 +106,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ========== Build /api/events URL ==========
-    function buildApiUrl(page) {
+    function buildApiUrl(page, pageSize = PAGE_SIZE) {
         const formData  = new FormData(filterForm);
         const target    = formData.get('target')    || '1.1';
         const tolerance = formData.get('tolerance') || '0.04';
         const sport     = formData.get('sport')     || '';
 
-        const params = new URLSearchParams({ target, tolerance, page: String(page), page_size: String(PAGE_SIZE) });
+        const params = new URLSearchParams({ target, tolerance, page: String(page), page_size: String(pageSize) });
         if (sport)                                  params.set('sport',       sport);
         if (advancedFilters.time_preset !== 'all')  params.set('time_preset', advancedFilters.time_preset);
         if (advancedFilters.from_time)              params.set('from_time',   advancedFilters.from_time);
@@ -136,7 +153,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 data-decimal="${m.decimal}">
                 <td>${esc(m.market_name)}</td>
                 <td>${esc(m.outcome)}</td>
-                <td class="text-end fw-bold text-success">${m.decimal.toFixed(2)}</td>
+                <td class="text-end fw-bold text-success odds-cell">${m.decimal.toFixed(2)}</td>
+                <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-primary add-to-combo-btn">Add Bet</button>
+                </td>
             </tr>`).join('');
 
         const div = document.createElement('div');
@@ -190,6 +210,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <th class="sort-header text-end" data-sort-col="odds" role="button" tabindex="0" aria-sort="none">
                                     Odds <i class="bi bi-arrow-down-up sort-icon ms-1"></i>
                                 </th>
+                                <th class="text-end">Builder</th>
                             </tr>
                         </thead>
                         <tbody>${rows}</tbody>
@@ -299,10 +320,561 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function renderCombinations(combinations) {
+        if (!combosTbody) return;
+        combosTbody.innerHTML = '';
+
+        const frag = document.createDocumentFragment();
+        combinations.forEach((combo) => {
+            const tr = document.createElement('tr');
+            const legsHtml = combo.legs
+                .map((leg, legIndex) => {
+                    const market = esc(leg.market_name || 'Market');
+                    const outcome = esc(leg.outcome || 'Outcome');
+                    const eventName = esc(leg.event_name || 'Event');
+                    const eventUrl = leg.event_url ? esc(leg.event_url) : '';
+                    const eventLabel = eventUrl
+                        ? `<a href="${eventUrl}" target="_blank" rel="noopener noreferrer" class="event-link">${eventName} <i class="bi bi-box-arrow-up-right small"></i></a>`
+                        : eventName;
+                    return `<li class="d-flex align-items-center justify-content-between gap-2">
+                        <span>
+                            <span class="fw-semibold">${market}</span>: ${outcome}
+                            <span class="text-muted">(${eventLabel})</span>
+                            <span class="text-success">@ ${Number(leg.decimal || 0).toFixed(2)}</span>
+                        </span>
+                        <span class="d-flex gap-1">
+                            <button type="button" class="btn btn-outline-secondary btn-sm combo-replace-leg" data-leg-index="${legIndex}">
+                                Replace
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm combo-remove-leg" data-leg-index="${legIndex}">
+                                Remove
+                            </button>
+                        </span>
+                    </li>`;
+                })
+                .join('');
+
+            tr.innerHTML = `
+                <td>
+                    <ol class="mb-0 combo-legs-list">${legsHtml}</ol>
+                </td>
+                <td class="text-end fw-bold text-success">${Number(combo.combined_odds || 0).toFixed(3)}</td>
+                <td class="text-end text-muted">${Number(combo.delta || 0).toFixed(3)}</td>
+            `;
+            frag.appendChild(tr);
+        });
+        combosTbody.appendChild(frag);
+    }
+
+    function recomputeComboMetrics(combo) {
+        combo.combined_odds = combo.legs.reduce((acc, leg) => acc * Number(leg.decimal || 1), 1);
+        combo.delta = Math.abs(combo.combined_odds - COMBO_TARGET_ODDS);
+    }
+
+    function randomSimilarReplacementPool(combo, legIndex) {
+        const originalLeg = combo.legs[legIndex];
+        if (!originalLeg) return [];
+
+        const protectedEvents = new Set(
+            combo.legs
+                .filter((_, idx) => idx !== legIndex)
+                .map((leg) => leg.event_id)
+        );
+        const originalKey = legKey(originalLeg);
+        const allCandidates = comboCandidatePool.length > 0
+            ? comboCandidatePool
+            : collectVisibleLegCandidates();
+        const originalOdds = Number(originalLeg.decimal || 1);
+
+        const bands = [0.03, 0.06, 0.10];
+        for (const band of bands) {
+            const pool = allCandidates.filter((candidate) => {
+                const odds = Number(candidate.decimal || 0);
+                if (!Number.isFinite(odds) || odds <= 1.0) return false;
+                if (protectedEvents.has(candidate.event_id)) return false;
+                if (legKey(candidate) === originalKey) return false;
+                return Math.abs(odds - originalOdds) <= band;
+            });
+
+            if (pool.length > 0) {
+                return pool;
+            }
+        }
+
+        return [];
+    }
+
+    async function replaceLegInCurrentCombination(legIndex) {
+        try {
+            await fetchAllLegCandidatesForCurrentFilters();
+        } catch (err) {
+            showToast('Error', `Failed to load matching events: ${err.message}`, 'error');
+            return;
+        }
+        const current = currentComboPageMatches()[0];
+        if (!current) {
+            showToast('Builder is empty', 'Use Add Bet to start building.', 'warning');
+            return;
+        }
+
+        const pool = randomSimilarReplacementPool(current, legIndex);
+        if (pool.length === 0) {
+            showToast('No similar replacement found', 'Try loading more events or adjust filters.', 'warning');
+            return;
+        }
+
+        const replacement = pool[Math.floor(Math.random() * pool.length)];
+        current.legs[legIndex] = replacement;
+        recomputeComboMetrics(current);
+
+        renderCurrentComboPage();
+        updateCombinationUiState();
+        showToast(
+            'Leg replaced',
+            `${replacement.market_name}: ${replacement.outcome} @ ${Number(replacement.decimal).toFixed(2)}`,
+            'success',
+            2500
+        );
+    }
+
+    function removeLegFromCurrentCombination(legIndex) {
+        const current = currentComboPageMatches()[0];
+        if (!current) {
+            showToast('Builder is empty', 'Use Add Bet to start building.', 'warning');
+            return;
+        }
+        if (!Array.isArray(current.legs) || current.legs.length <= 1) {
+            showToast('Cannot remove', 'A combination must contain at least 1 bet.', 'warning');
+            return;
+        }
+
+        const removed = current.legs.splice(legIndex, 1)[0];
+        if (!removed) return;
+        recomputeComboMetrics(current);
+
+        renderCurrentComboPage();
+        updateCombinationUiState();
+        showToast('Leg removed', `${removed.market_name}: ${removed.outcome}`, 'info', 2200);
+    }
+
+    function randomCandidateForAdd(combo) {
+        const protectedEvents = new Set(combo.legs.map((leg) => leg.event_id));
+        const sourcePool = comboCandidatePool.length > 0 ? comboCandidatePool : collectVisibleLegCandidates();
+        const avgOdds = combo.legs.length > 0
+            ? combo.legs.reduce((acc, leg) => acc + Number(leg.decimal || 0), 0) / combo.legs.length
+            : COMBO_TARGET_ODDS;
+
+        const bands = [0.04, 0.08, 0.15];
+        for (const band of bands) {
+            const pool = sourcePool.filter((candidate) => {
+                const odds = Number(candidate.decimal || 0);
+                if (!Number.isFinite(odds) || odds <= 1.0) return false;
+                if (protectedEvents.has(candidate.event_id)) return false;
+                return Math.abs(odds - avgOdds) <= band;
+            });
+            if (pool.length > 0) {
+                return pool[Math.floor(Math.random() * pool.length)];
+            }
+        }
+
+        const fallback = sourcePool.filter((candidate) => !protectedEvents.has(candidate.event_id));
+        if (fallback.length === 0) return null;
+        return fallback[Math.floor(Math.random() * fallback.length)];
+    }
+
+    async function addRandomLegToCurrentCombination() {
+        try {
+            await fetchAllLegCandidatesForCurrentFilters();
+        } catch (err) {
+            showToast('Error', `Failed to load matching events: ${err.message}`, 'error');
+            return;
+        }
+
+        if (comboMatches.length === 0) {
+            comboMatches = [{ legs: [], combined_odds: 1, delta: 0 }];
+            comboPage = 0;
+        }
+        const current = currentComboPageMatches()[0];
+
+        if (current.legs.length >= MAX_COMBO_BETS) {
+            showToast('Max bets reached', `This combination already has ${MAX_COMBO_BETS} bets.`, 'warning');
+            return;
+        }
+
+        const candidate = randomCandidateForAdd(current);
+        if (!candidate) {
+            showToast('No random bet available', 'No compatible event left to add.', 'warning');
+            return;
+        }
+
+        current.legs.push(candidate);
+        recomputeComboMetrics(current);
+
+        renderCurrentComboPage();
+        updateCombinationUiState();
+        showToast(
+            'Bet added',
+            `${candidate.market_name}: ${candidate.outcome} @ ${Number(candidate.decimal).toFixed(2)}`,
+            'success',
+            2500
+        );
+    }
+
+    function legCandidateFromMarketRow(row) {
+        const decimal = Number.parseFloat(row.dataset.decimal || '0');
+        if (!Number.isFinite(decimal) || decimal <= 1.0) {
+            return null;
+        }
+        const eventNode = row.closest('.accordion-item[data-event-id]');
+        if (!eventNode) {
+            return null;
+        }
+        return {
+            event_id: row.dataset.eventId || '',
+            event_name: eventNode.querySelector('.event-link')?.textContent?.trim() || 'Event',
+            event_url: eventNode.querySelector('.event-link')?.getAttribute('href') || '',
+            market_name: row.dataset.marketName || 'Market',
+            outcome: row.dataset.outcome || 'Outcome',
+            decimal,
+        };
+    }
+
+    function addSpecificLegToCurrentCombination(candidate) {
+        if (!candidate) return;
+
+        if (comboMatches.length === 0) {
+            comboMatches = [{ legs: [], combined_odds: 1, delta: 0 }];
+            comboPage = 0;
+        }
+        const current = currentComboPageMatches()[0];
+        if (!current) return;
+
+        if (current.legs.length >= MAX_COMBO_BETS) {
+            showToast('Max bets reached', `This combination already has ${MAX_COMBO_BETS} bets.`, 'warning');
+            return;
+        }
+
+        if (current.legs.some((leg) => leg.event_id === candidate.event_id)) {
+            showToast('Event already included', 'Only one bet per event is allowed in the builder.', 'warning');
+            return;
+        }
+
+        current.legs.push(candidate);
+        recomputeComboMetrics(current);
+        renderCurrentComboPage();
+        updateCombinationUiState();
+        showToast(
+            'Bet added',
+            `${candidate.market_name}: ${candidate.outcome} @ ${Number(candidate.decimal).toFixed(2)}`,
+            'success',
+            2500
+        );
+    }
+
+    function currentComboPageMatches() {
+        if (comboMatches.length === 0) {
+            return [];
+        }
+        return [comboMatches[0]];
+    }
+
+    function renderCurrentComboPage() {
+        renderCombinations(currentComboPageMatches());
+    }
+
+    function clearCombinationResults(message) {
+        comboPage = -1;
+        comboMatches = [];
+        renderCurrentComboPage();
+        if (combosInfo && message) {
+            combosInfo.textContent = message;
+        }
+        updateCombinationUiState();
+    }
+
+    function updateCombinationUiState() {
+        const hasBuilderCombo = comboMatches.length > 0;
+        const comboSize = hasBuilderCombo ? (comboMatches[0].legs?.length || 0) : 0;
+        if (combosBadge) {
+            combosBadge.textContent = hasBuilderCombo ? `${comboSize} bet${comboSize === 1 ? '' : 's'}` : 'Empty';
+        }
+        if (combosInfo) {
+            combosInfo.textContent = hasBuilderCombo
+                ? `Builder active with ${comboSize} bet${comboSize === 1 ? '' : 's'}.`
+                : 'Builder is empty. Use Add Bet to start.';
+        }
+        if (combosEmptyState) {
+            combosEmptyState.classList.toggle('d-none', hasBuilderCombo);
+        }
+        if (combosTableWrap) {
+            combosTableWrap.classList.remove('d-none');
+        }
+        if (comboClearBtn) comboClearBtn.disabled = comboIsSearching || !hasBuilderCombo;
+        if (comboAddLegBtn) comboAddLegBtn.disabled = comboIsSearching;
+    }
+
+    function collectVisibleLegCandidates() {
+        const rows = Array.from(
+            accordion.querySelectorAll('.accordion-item[data-event-id] tr[data-event-id][data-decimal]')
+        );
+
+        return rows
+            .map((row) => {
+                const decimal = Number.parseFloat(row.dataset.decimal || '0');
+                if (!Number.isFinite(decimal) || decimal <= 1.0) {
+                    return null;
+                }
+
+                const eventNode = row.closest('.accordion-item[data-event-id]');
+                if (!eventNode) {
+                    return null;
+                }
+
+                const isLive = eventNode.dataset.isLive === 'true';
+                if (advancedFilters.omit_live_events && isLive) {
+                    return null;
+                }
+
+                return {
+                    event_id: row.dataset.eventId || '',
+                    event_name: eventNode.querySelector('.event-link')?.textContent?.trim() || 'Event',
+                    event_url: eventNode.querySelector('.event-link')?.getAttribute('href') || '',
+                    market_name: row.dataset.marketName || 'Market',
+                    outcome: row.dataset.outcome || 'Outcome',
+                    decimal,
+                };
+            })
+            .filter(Boolean);
+    }
+
+    function candidatePoolSignature() {
+        const formData  = new FormData(filterForm);
+        return JSON.stringify({
+            target: formData.get('target') || '1.1',
+            tolerance: formData.get('tolerance') || '0.04',
+            sport: formData.get('sport') || '',
+            time_preset: advancedFilters.time_preset,
+            from_time: advancedFilters.from_time,
+            to_time: advancedFilters.to_time,
+            live_only: advancedFilters.live_only,
+            class_id: advancedFilters.class_id,
+            omit_live_events: advancedFilters.omit_live_events,
+        });
+    }
+
+    async function fetchAllLegCandidatesForCurrentFilters() {
+        const signature = candidatePoolSignature();
+        if (comboCandidatePool.length > 0 && comboCandidateSignature === signature) {
+            return comboCandidatePool;
+        }
+
+        const pageSize = 200;
+        const maxPages = 250;
+        let page = 0;
+        let hasMorePages = true;
+        const all = [];
+
+        while (hasMorePages && page < maxPages) {
+            const url = buildApiUrl(page, pageSize);
+            const resp = await fetch(url);
+            if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+            }
+
+            const data = await resp.json();
+            (data.events || []).forEach((event) => {
+                const isLive = !!event.is_live;
+                if (advancedFilters.omit_live_events && isLive) {
+                    return;
+                }
+
+                (event.markets || []).forEach((market) => {
+                    const decimal = Number.parseFloat(String(market.decimal ?? 0));
+                    if (!Number.isFinite(decimal) || decimal <= 1.0) {
+                        return;
+                    }
+
+                    all.push({
+                        event_id: event.event_id || '',
+                        event_name: event.event_name || 'Event',
+                        event_url: event.event_url || '',
+                        market_name: market.market_name || 'Market',
+                        outcome: market.outcome || 'Outcome',
+                        decimal,
+                    });
+                });
+            });
+
+            hasMorePages = !!data.has_more;
+            page += 1;
+            if (combosInfo && hasMorePages) {
+                combosInfo.textContent = `Loading all matching events for combinations... page ${page}`;
+            }
+        }
+
+        comboCandidatePool = all;
+        comboCandidateSignature = signature;
+        return comboCandidatePool;
+    }
+
+    function oddsEntropy(legs) {
+        if (!legs?.length) return 0;
+        const buckets = new Map();
+        legs.forEach((leg) => {
+            const bucket = (Math.round((leg.decimal || 0) * 20) / 20).toFixed(2);
+            buckets.set(bucket, (buckets.get(bucket) || 0) + 1);
+        });
+
+        const total = legs.length;
+        let entropy = 0;
+        buckets.forEach((count) => {
+            const p = count / total;
+            entropy -= p * Math.log2(p);
+        });
+
+        const maxEntropy = Math.log2(total);
+        return maxEntropy > 0 ? entropy / maxEntropy : 0;
+    }
+
+    function legKey(leg) {
+        return `${leg.event_id}|${leg.market_name}|${leg.outcome}`;
+    }
+
+    function jaccardSimilarity(legsA, legsB) {
+        const setA = new Set(legsA.map(legKey));
+        const setB = new Set(legsB.map(legKey));
+        return jaccardSimilaritySets(setA, setB);
+    }
+
+    function jaccardSimilaritySets(setA, setB) {
+        let intersection = 0;
+        setA.forEach((key) => {
+            if (setB.has(key)) intersection += 1;
+        });
+        const union = setA.size + setB.size - intersection;
+        return union > 0 ? intersection / union : 0;
+    }
+
+    function filterSimilarCombinationsByEntropy(sortedMatches) {
+        const accepted = [];
+        const similarityThreshold = 0.85;
+
+        sortedMatches.forEach((candidate) => {
+            let duplicateIndex = -1;
+            for (let i = 0; i < accepted.length; i += 1) {
+                const existing = accepted[i];
+                if (jaccardSimilarity(candidate.legs, existing.legs) >= similarityThreshold) {
+                    duplicateIndex = i;
+                    break;
+                }
+            }
+
+            if (duplicateIndex === -1) {
+                accepted.push(candidate);
+                return;
+            }
+
+            if (candidate.entropy > accepted[duplicateIndex].entropy) {
+                accepted[duplicateIndex] = candidate;
+            }
+        });
+
+        return accepted;
+    }
+
+    // Re-rank candidates to explicitly balance quality vs novelty.
+    // Higher minVariety increases novelty pressure and yields visibly different combos.
+    function diversifyMatches(sortedMatches, minVariety, prioritizeFewerBets) {
+        if (sortedMatches.length <= 1) {
+            return sortedMatches.map((m) => ({ ...m, variety: 1 }));
+        }
+
+        const poolLimit = 600;
+        const pool = sortedMatches
+            .slice(0, Math.min(poolLimit, sortedMatches.length))
+            .map((match) => ({ ...match, legSet: new Set(match.legs.map(legKey)) }));
+        const chosen = [];
+        const used = new Set();
+        const legUseCount = new Map();
+        const maxKeep = 300;
+
+        const safeDenominator = Math.max(1, pool.length - 1);
+        const baseVarietyWeight = Math.min(0.95, 0.40 + (minVariety * 0.60) + (prioritizeFewerBets ? 0.06 : 0));
+        const reusePenaltyWeight = 0.10 + (minVariety * 0.35);
+
+        function averageLegReuse(candidateLegSet) {
+            if (chosen.length === 0 || candidateLegSet.size === 0) return 0;
+            let total = 0;
+            candidateLegSet.forEach((k) => {
+                total += (legUseCount.get(k) || 0) / chosen.length;
+            });
+            return total / candidateLegSet.size;
+        }
+
+        function pickNext(relaxFactor = 1) {
+            const requiredVariety = Math.max(0, Math.min(1, minVariety * relaxFactor));
+            let bestIdx = -1;
+            let bestScore = Number.NEGATIVE_INFINITY;
+            let bestVariety = 1;
+
+            for (let i = 0; i < pool.length; i += 1) {
+                if (used.has(i)) continue;
+
+                const candidate = pool[i];
+                const maxSimilarity = chosen.length === 0
+                    ? 0
+                    : chosen.reduce(
+                        (acc, existing) => Math.max(acc, jaccardSimilaritySets(candidate.legSet, existing.legSet)),
+                        0
+                    );
+
+                const variety = 1 - maxSimilarity;
+                if (chosen.length > 0 && variety < requiredVariety) {
+                    continue;
+                }
+
+                const quality = 1 - (i / safeDenominator);
+                const reusePenalty = averageLegReuse(candidate.legSet);
+                const score = (quality * (1 - baseVarietyWeight))
+                    + (variety * baseVarietyWeight)
+                    - (reusePenalty * reusePenaltyWeight);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestIdx = i;
+                    bestVariety = variety;
+                }
+            }
+
+            return { bestIdx, bestVariety };
+        }
+
+        while (chosen.length < pool.length && chosen.length < maxKeep) {
+            // First pass honors requested variety. If no candidate survives, relax progressively.
+            let { bestIdx, bestVariety } = pickNext(1);
+            if (bestIdx === -1) ({ bestIdx, bestVariety } = pickNext(0.85));
+            if (bestIdx === -1) ({ bestIdx, bestVariety } = pickNext(0.65));
+            if (bestIdx === -1) ({ bestIdx, bestVariety } = pickNext(0));
+
+            if (bestIdx === -1) break;
+
+            used.add(bestIdx);
+            const picked = { ...pool[bestIdx], variety: bestVariety };
+            picked.legSet.forEach((k) => {
+                legUseCount.set(k, (legUseCount.get(k) || 0) + 1);
+            });
+            chosen.push(picked);
+        }
+
+        return chosen.map(({ legSet, ...rest }) => rest);
+    }
+
     // ========== Reload from page 0 ==========
     function reloadEvents() {
         updateApiLink();
         fetchEvents(0, false);
+        comboCandidatePool = [];
+        comboCandidateSignature = '';
     }
 
     // ========== Form submit (Find Bets) ==========
@@ -330,6 +902,8 @@ document.addEventListener('DOMContentLoaded', function () {
         advancedFilters.to_time     = toTimeInput?.value    ?? '';
         advancedFilters.live_only   = document.querySelector('input[name="live_status"]:checked')?.value === 'live';
         advancedFilters.class_id    = leagueFilter?.value   ?? '';
+        advancedFilters.omit_live_events = !!omitLiveCombosInput?.checked;
+        if (omitLiveCombosInput) omitLiveCombosInput.checked = !!advancedFilters.omit_live_events;
     }
 
     function onAdvancedFilterChange() {
@@ -344,6 +918,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fromTimeInput?.addEventListener('change',    onAdvancedFilterChange);
     toTimeInput?.addEventListener('change',      onAdvancedFilterChange);
     leagueFilter?.addEventListener('change',     onAdvancedFilterChange);
+    omitLiveCombosInput?.addEventListener('change', () => { syncAdvancedFilters(); saveFilterState(); });
     liveStatusRadios.forEach(r => r.addEventListener('change', onAdvancedFilterChange));
 
     clearFiltersBtn?.addEventListener('click', function () {
@@ -351,9 +926,17 @@ document.addEventListener('DOMContentLoaded', function () {
         if (timePresetSelect)  timePresetSelect.value = 'all';
         if (fromTimeInput)     fromTimeInput.value  = '';
         if (toTimeInput)       toTimeInput.value    = '';
+        if (omitLiveCombosInput) omitLiveCombosInput.checked = false;
         const allRadio = document.getElementById('status-all');
         if (allRadio) allRadio.checked = true;
-        advancedFilters = { time_preset: 'all', from_time: '', to_time: '', live_only: false, class_id: '' };
+        advancedFilters = {
+            time_preset: 'all',
+            from_time: '',
+            to_time: '',
+            live_only: false,
+            class_id: '',
+            omit_live_events: false,
+        };
         toggleCustomTimeRange();
         updateActiveFilterBadge();
         try { localStorage.removeItem('henzeFilters'); } catch (_) {}
@@ -402,6 +985,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (fromTimeInput)     fromTimeInput.value    = advancedFilters.from_time   || '';
             if (toTimeInput)       toTimeInput.value      = advancedFilters.to_time     || '';
             if (leagueFilter)      leagueFilter.value     = advancedFilters.class_id    || '';
+            if (omitLiveCombosInput) omitLiveCombosInput.checked = !!advancedFilters.omit_live_events;
             const liveVal = advancedFilters.live_only ? 'live' : 'all';
             const radio   = document.getElementById(`status-${liveVal}`);
             if (radio) radio.checked = true;
@@ -420,6 +1004,19 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         accordion.addEventListener('click', (e) => {
             if (e.target.closest('.event-link')) e.stopPropagation();
+
+            const addBtn = e.target.closest('.add-to-combo-btn');
+            if (addBtn) {
+                e.stopPropagation();
+                const row = addBtn.closest('tr[data-event-id][data-decimal]');
+                if (!row) return;
+                const candidate = legCandidateFromMarketRow(row);
+                if (!candidate) {
+                    showToast('Cannot add bet', 'Selected row has invalid odds data.', 'warning');
+                    return;
+                }
+                addSpecificLegToCurrentCombination(candidate);
+            }
         });
         accordion.addEventListener('keypress', (e) => {
             if (e.target.matches('.accordion-button') && (e.key === 'Enter' || e.key === ' ')) {
@@ -496,7 +1093,7 @@ document.addEventListener('DOMContentLoaded', function () {
             labels.forEach(lbl => {
                 const hdr = document.createElement('tr');
                 hdr.className = 'market-group-header';
-                hdr.innerHTML = `<td colspan="3"><span class="market-group-label">${lbl}</span></td>`;
+                hdr.innerHTML = `<td colspan="4"><span class="market-group-label">${lbl}</span></td>`;
                 tbody.appendChild(hdr);
                 groups.get(lbl).forEach(r => tbody.appendChild(r));
             });
@@ -609,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const sticker = document.createElement('span');
                 sticker.className   = 'ds-lucky-ribbon-inline';
                 sticker.textContent = 'Lucky Bet';
-                matchedRow.querySelector('td:last-child')?.prepend(sticker);
+                matchedRow.querySelector('td.odds-cell')?.prepend(sticker);
                 showToast('Lucky pick!', `${marketName}: ${outcome} @ ${decimal.toFixed(2)}`, 'success');
             };
 
@@ -631,10 +1228,30 @@ document.addEventListener('DOMContentLoaded', function () {
     // ========== Initialise ==========
     toggleCustomTimeRange();
     loadFilterState();
+    syncAdvancedFilters();
     updateActiveFilterBadge();
     updateApiLink();
     ensureAccordionListeners();
 
+    comboClearBtn?.addEventListener('click', () => {
+        clearCombinationResults('Builder is empty. Use Add Bet to start.');
+    });
+    comboAddLegBtn?.addEventListener('click', addRandomLegToCurrentCombination);
+    combosTbody?.addEventListener('click', (e) => {
+        const replaceBtn = e.target.closest('.combo-replace-leg');
+        const removeBtn = e.target.closest('.combo-remove-leg');
+        const button = replaceBtn || removeBtn;
+        if (!button) return;
+        const legIndex = Number.parseInt(button.dataset.legIndex || '', 10);
+        if (Number.isNaN(legIndex)) return;
+        if (replaceBtn) {
+            replaceLegInCurrentCombination(legIndex);
+        } else {
+            removeLegFromCurrentCombination(legIndex);
+        }
+    });
+
     // Kick off initial data fetch
     fetchEvents(0, false);
+    clearCombinationResults('Builder is empty. Use Add Bet to start.');
 });
