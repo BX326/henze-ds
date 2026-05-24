@@ -11,10 +11,11 @@ use rocket_dyn_templates::Template;
 use serde::Serialize;
 use std::env;
 
-use crate::models::{EventsPage, ShellContext};
+use crate::models::{CombinationsPage, EventsPage, ShellContext};
 use crate::utils::{
     build_sports_list, fetch_bets_with_cache, fetch_events_page,
-    prefetch_standard_windows, record_prefetch_time, get_last_prefetch_time,
+    fetch_combinations_page, get_last_prefetch_time, prefetch_standard_windows,
+    record_prefetch_time,
 };
 
 /// Parse time preset into start/end DateTime range.
@@ -148,6 +149,69 @@ pub async fn api_bets(
     .with_live_only(live);
 
     match fetch_bets_with_cache(filter).await {
+        Ok(data) => Ok(Json(data)),
+        Err(_) => Err(Status::InternalServerError),
+    }
+}
+
+/// Combinations API - returns combinations where multiplied leg odds are close to combo_target.
+#[get("/api/combinations?<target>&<tolerance>&<sport>&<time_preset>&<from_time>&<to_time>&<live_only>&<class_id>&<combo_target>&<combo_tolerance>&<max_legs>&<page>&<page_size>")]
+pub async fn api_combinations(
+    target: Option<f64>,
+    tolerance: Option<f64>,
+    sport: Option<String>,
+    time_preset: Option<String>,
+    from_time: Option<String>,
+    to_time: Option<String>,
+    live_only: Option<bool>,
+    class_id: Option<String>,
+    combo_target: Option<f64>,
+    combo_tolerance: Option<f64>,
+    max_legs: Option<usize>,
+    page: Option<usize>,
+    page_size: Option<usize>,
+) -> Result<Json<CombinationsPage>, Status> {
+    let sport_filter = sport.filter(|s| !s.is_empty());
+    let preset = time_preset.unwrap_or_else(|| "all".to_string());
+    let from = from_time.unwrap_or_default();
+    let to = to_time.unwrap_or_default();
+    let live = live_only.unwrap_or(false);
+
+    let combo_target = combo_target.unwrap_or(5.0);
+    let combo_tolerance = combo_tolerance.unwrap_or(0.20);
+    let max_legs = max_legs.unwrap_or(25).clamp(1, 25);
+    let page = page.unwrap_or(0);
+    let page_size = page_size.unwrap_or(25).clamp(1, 100);
+
+    if combo_target <= 1.0 || combo_tolerance < 0.0 {
+        return Err(Status::BadRequest);
+    }
+
+    let (start_from, start_to) = if preset == "custom" {
+        (parse_datetime(&from), parse_datetime(&to))
+    } else {
+        parse_time_preset(&preset)
+    };
+
+    let filter = HenzeFilter::with_sport(
+        target.unwrap_or(DEFAULT_TARGET_ODDS),
+        tolerance.unwrap_or(DEFAULT_TOLERANCE),
+        sport_filter,
+    )
+    .with_time_range(start_from, start_to)
+    .with_live_only(live);
+
+    match fetch_combinations_page(
+        filter,
+        class_id,
+        combo_target,
+        combo_tolerance,
+        max_legs,
+        page,
+        page_size,
+    )
+    .await
+    {
         Ok(data) => Ok(Json(data)),
         Err(_) => Err(Status::InternalServerError),
     }

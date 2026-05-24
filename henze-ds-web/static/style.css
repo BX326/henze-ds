@@ -19,6 +19,28 @@ body {
     background-color: #1a1a1a;
 }
 
+.combo-legs-list {
+    padding-left: 1.2rem;
+}
+
+.combo-legs-list li {
+    margin-bottom: 0.2rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.combo-legs-list li:last-child {
+    margin-bottom: 0;
+}
+
+#combinations-table .combo-legs-list li:nth-child(odd) {
+    background-color: #2a2a2a;
+}
+
+#combinations-table .combo-legs-list li:nth-child(even) {
+    background-color: #252525;
+}
+
 /* Primary color utilities */
 .bg-primary {
     background-color: #004b32 !important;

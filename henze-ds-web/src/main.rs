@@ -11,7 +11,8 @@ use rocket_dyn_templates::Template;
 use std::env;
 
 use handlers::{
-    api_bets, api_events, index, internal_prefetch, internal_prefetch_status, not_found,
+    api_bets, api_combinations, api_events, index, internal_prefetch, internal_prefetch_status,
+    not_found,
 };
 
 #[launch]
@@ -32,6 +33,7 @@ fn rocket() -> _ {
                 index,
                 api_events,
                 api_bets,
+                api_combinations,
                 internal_prefetch,
                 internal_prefetch_status,
             ],
